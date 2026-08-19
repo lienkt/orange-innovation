@@ -770,6 +770,51 @@ Giving the radar its own plan means paying for one — B1 is about USD 13/month:
 
     RG=rg-orange-radar PLAN=plan-orange-radar SKU=B1 ./scripts/deploy-azure.sh
 
+**Nothing may raise at import, and no bash wrapper.** These two are one lesson.
+A container that exits is restarted, fifteen restarts exhaust the Free plan's
+`WP stop requests` quota, and that quota **also disables Kudu** — so a crash loop
+erases the logs that would explain it. Five deployments failed that way before
+the design changed to make it impossible:
+
+* The startup command names **no absolute path and no console script**:
+  `python3 -m uvicorn main:app`. This is the one that cost five deployments, and
+  the cause is not obvious. App Service does not run the deployed tree in place.
+  Oryx builds it, compresses the result to `output.tar.zst`, and on *every*
+  container start extracts that tarball to a fresh `/tmp/<hash>` which becomes
+  the working directory. `/home/site/wwwroot` holds the tarball and nothing
+  else, and the extraction path changes with each deploy — so no absolute path
+  into `wwwroot` is ever valid at runtime, not for a startup script, not for
+  `PYTHONPATH`, not for a module. Every such command exits **127** before
+  printing anything. `python3 -m` resolves through `PYTHONPATH` (which Oryx
+  points at the extracted virtualenv) rather than `PATH` (which it does not
+  extend), and `main.py` puts its own sibling `src` on `sys.path`, so both
+  resolve relative to wherever the tarball happened to land.
+* Everything that wrapper used to do — seeding `/home/data/radar.db` from the
+  package, converting its journal mode, copying the briefs — is in
+  `radar/bootstrap.py`, which runs inside the app, inside the venv, and catches
+  everything it can hit.
+* `api.py` no longer dies when the database is unusable. It records the error
+  and `/healthz` answers **503 with the reason**, so a bad deployment describes
+  itself over HTTPS instead of disappearing.
+* Briefs are resolved by **filename against the configured directory**, not by
+  the absolute path recorded in `topic_briefs.path`. That column records the
+  machine that *built* the PDF — a laptop the server has never seen — so taken
+  literally every brief 404s in Azure and the UI reports that none were ever
+  generated. `resolve_brief()` falls back to `RADAR_BRIEF_DIR`, and both the
+  file route and the metadata payload go through it so they cannot disagree.
+
+**Reading the logs when Kudu is 403.** The deadlock above is escapable without
+waiting an hour. Point the startup command at a static server over the whole
+persisted tree —
+
+    az webapp config set -g $RG -n $APP \
+      --startup-file "python3 -m http.server 8000 --directory /home"
+
+— and the container stays up (so the restart quota stops draining) while
+`/LogFiles/*_docker.log` becomes readable over plain HTTPS. That is what finally
+produced the `exit code 127` and the `can't open file` line above, after five
+attempts spent guessing. Reach for it early, not late.
+
 **SQLite cannot use WAL on `/home`.** This one cost a night. `/home` is the only
 path that survives a restart on Linux App Service, and it is an SMB mount:
 Azure Files. WAL needs shared memory that SMB does not provide, so opening a WAL
@@ -779,7 +824,9 @@ fails again, and after fifteen restarts the plan's hourly `WP stop requests`
 quota is spent. At that point the app returns 403 `QuotaExceeded`, **and so does
 Kudu**, so the logs that would explain it are unreadable until the quota resets.
 
-The symptom is easy to misread as a Free-tier limitation. It is not — CPU sat at
+The symptom is easy to misread as a Free-tier limitation — a second app on the
+plan was even stopped to "free a slot", which changed nothing: the F1 plan runs
+both apps side by side. It is not a resource limit — CPU sat at
 0% of its daily allowance throughout. `db.py` therefore takes
 `RADAR_SQLITE_JOURNAL_MODE` (default `WAL`, set to `DELETE` in App Service),
 `startup.sh` converts the seeded copy once, and it writes its own log to

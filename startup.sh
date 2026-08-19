@@ -51,11 +51,30 @@ PYEOF
 
 export PYTHONPATH="$APP_DIR/src:${PYTHONPATH:-}"
 
+# Oryx installs the dependencies into a virtualenv and the platform's DEFAULT
+# startup activates it. A custom startup command does not get that for free, so
+# `gunicorn` is simply not on PATH and the script dies before it prints anything
+# useful — which is what the first two attempts did. Local testing missed it
+# because a venv was already active there.
+for CANDIDATE in "$APP_DIR/antenv" /tmp/*/antenv; do
+  if [ -f "$CANDIDATE/bin/activate" ]; then
+    echo "startup: activating virtualenv $CANDIDATE"
+    # shellcheck disable=SC1091
+    . "$CANDIDATE/bin/activate"
+    break
+  fi
+done
+echo "startup: python=$(command -v python3) gunicorn=$(command -v gunicorn || echo MISSING)"
+
 # One worker: the Free tier has a single core and ~1 GB of memory, and SQLite
 # with WAL is happiest with one writer. Threads carry the concurrency, which is
 # right for a read-mostly API that spends its time waiting on the model.
+# NOT `exec`, and no `set -e`: if this returns, the script has to survive it.
+# A container that exits gets restarted by the platform, and fifteen restarts
+# exhaust the plan's quota — which then disables the very log endpoints needed to
+# find out why. Failing loudly on a port beats failing invisibly.
 echo "startup: launching gunicorn"
-exec gunicorn radar.api:app \
+gunicorn radar.api:app \
   --bind "0.0.0.0:${PORT:-8000}" \
   --worker-class uvicorn.workers.UvicornWorker \
   --workers 1 \
@@ -63,3 +82,8 @@ exec gunicorn radar.api:app \
   --timeout 180 \
   --access-logfile '-' \
   --error-logfile '-'
+STATUS=$?
+
+echo "startup: gunicorn exited with status $STATUS — serving diagnostics instead"
+export APP_DIR RADAR_STARTUP_LOG="$LOG_DIR/radar-startup.log"
+exec python3 "$APP_DIR/fallback_server.py"

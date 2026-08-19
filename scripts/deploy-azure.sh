@@ -53,7 +53,7 @@ echo "==> assembling the deployment package in $STAGE"
 mkdir -p "$STAGE/frontend" "$STAGE/data/briefs"
 cp -R "$ROOT/src" "$ROOT/config" "$STAGE/"
 cp -R "$ROOT/frontend/dist" "$STAGE/frontend/dist"
-cp "$ROOT/startup.sh" "$ROOT/.deployment" "$STAGE/"
+cp "$ROOT/main.py" "$ROOT/fallback_server.py" "$ROOT/.deployment" "$STAGE/"
 cp "$ROOT/requirements-azure.txt" "$STAGE/requirements.txt"
 cp "$ROOT"/data/briefs/*.pdf "$STAGE/data/briefs/" 2>/dev/null || true
 find "$STAGE" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
@@ -84,11 +84,11 @@ read_env() { grep "^$1=" "$ROOT/.env" 2>/dev/null | cut -d= -f2- || true; }
 az webapp config appsettings set -g "$RG" -n "$APP" --settings \
   SCM_DO_BUILD_DURING_DEPLOYMENT=true \
   ENABLE_ORYX_BUILD=true \
-  PYTHONPATH=/home/site/wwwroot/src \
   RADAR_DB_PATH=/home/data/radar.db \
   RADAR_BRIEF_DIR=/home/data/briefs \
   RADAR_ARCHIVE_DIR=/home/data/archive \
   RADAR_SQLITE_JOURNAL_MODE=DELETE \
+  RADAR_STARTUP_LOG=/home/LogFiles/radar-startup.log \
   RADAR_LLM_PROVIDER="$(read_env RADAR_LLM_PROVIDER)" \
   RADAR_LLM_MODEL_STRONG="$(read_env RADAR_LLM_MODEL_STRONG)" \
   RADAR_LLM_MODEL_CHEAP="$(read_env RADAR_LLM_MODEL_CHEAP)" \
@@ -97,12 +97,24 @@ az webapp config appsettings set -g "$RG" -n "$APP" --settings \
   DEEPSEEK_API_KEY="$(read_env DEEPSEEK_API_KEY)" \
   WEBSITES_CONTAINER_START_TIME_LIMIT=600 \
   -o none
-az webapp config set -g "$RG" -n "$APP" --startup-file "bash /home/site/wwwroot/startup.sh" -o none
+
+# Filesystem logging keeps the container log in /home/LogFiles, which survives a
+# container that does not. Without it, a failed boot leaves nothing to read.
+az webapp log config -g "$RG" -n "$APP" --docker-container-logging filesystem \
+  --application-logging filesystem --level verbose -o none
 az webapp update -g "$RG" -n "$APP" --https-only true -o none
 
 echo "==> deploying"
 (cd "$STAGE" && zip -qr "$STAGE/package.zip" . -x '*.DS_Store')
 az webapp deploy -g "$RG" -n "$APP" --src-path "$STAGE/package.zip" --type zip -o none
+
+# Oryx extracts the build to a fresh /tmp/<hash> and cds there, so the command
+# must not name an absolute path or a console script. `python3 -m uvicorn`
+# resolves through PYTHONPATH (which Oryx points at the extracted virtualenv)
+# rather than PATH (which it does not extend), and `main:app` resolves through
+# the working directory. Earlier commands failed both ways and exited 127.
+az webapp config set -g "$RG" -n "$APP" --startup-file \
+  "python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 60" -o none
 
 HOST="$(az webapp show -g "$RG" -n "$APP" --query defaultHostName -o tsv)"
 echo "==> waiting for the app to answer"

@@ -14,15 +14,17 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import bootstrap
 from .brief import BriefBuilder, brief_for_topic, brief_path
 from .competition import CompetitionAnalyser, LEVEL_MEANING, competition_for_topic
 from .config import get_config
@@ -58,11 +60,33 @@ app.add_middleware(
 )
 
 _cfg = get_config()
-_db = Database(_cfg.db_path)
-# Idempotent, and it means a database created before the sizing, competition and
-# brief tables existed still serves those endpoints rather than 500ing on a
-# missing table.
-_db.init_schema()
+# Prepare persistent storage BEFORE opening the database. On App Service the
+# database lives on an SMB share that cannot host a WAL journal, and the file
+# has to be seeded from the deployment package on first boot — see
+# radar.bootstrap for why both of those are done here rather than in a shell
+# script wrapped around the process.
+bootstrap.prepare(Path(_cfg.db_path), Path(__file__).resolve().parents[2])
+
+try:
+    _db = Database(_cfg.db_path)
+except Exception as exc:  # noqa: BLE001 — an unusable path must not kill the import
+    bootstrap.STARTUP_ERROR = f"{type(exc).__name__}: {exc}"
+    log.error("Database path unusable (%s); serving in a degraded state", exc)
+    _db = Database(Path(tempfile.gettempdir()) / "radar-unavailable.db")
+
+try:
+    # Idempotent, and it means a database created before the sizing, competition
+    # and brief tables existed still serves those endpoints rather than 500ing
+    # on a missing table.
+    _db.init_schema()
+except Exception as exc:  # noqa: BLE001
+    # NOT fatal. A process that raises at import is restarted by the platform,
+    # and enough restarts exhaust a Free plan's quota — which also disables the
+    # log endpoints, so the failure hides its own cause. Recording it and
+    # answering 503 with the reason is strictly more useful than dying.
+    bootstrap.STARTUP_ERROR = f"{type(exc).__name__}: {exc}"
+    log.error("Database initialisation failed: %s", exc)
+
 _read = ReadModel(_cfg, _db)
 _workflow = WorkflowService(_cfg, _db)
 
@@ -800,9 +824,23 @@ _FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
 @app.get("/healthz", include_in_schema=False)
-def healthz() -> dict[str, Any]:
-    """Liveness for the platform, distinct from /api/health's data counts."""
-    return {"ok": True, "frontend": _FRONTEND_DIST.is_dir()}
+def healthz() -> Any:
+    """Liveness for the platform, distinct from /api/health's data counts.
+
+    Reports a failed start rather than the process disappearing: 503 with the
+    reason, and the startup notes alongside it, is what makes a bad deployment
+    diagnosable from outside.
+    """
+    payload = {
+        "ok": bootstrap.STARTUP_ERROR is None,
+        "frontend": _FRONTEND_DIST.is_dir(),
+        "database": str(_cfg.db_path),
+        "startup": bootstrap.STARTUP_NOTES[-8:],
+    }
+    if bootstrap.STARTUP_ERROR:
+        payload["error"] = bootstrap.STARTUP_ERROR
+        return JSONResponse(payload, status_code=503)
+    return payload
 
 
 if _FRONTEND_DIST.is_dir():

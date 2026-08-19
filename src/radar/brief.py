@@ -926,7 +926,7 @@ def brief_for_topic(db: Database, topic_id: str) -> dict[str, Any] | None:
         "SELECT MAX(computed_at) AS at FROM market_sizes WHERE opportunity_id = ?", (topic_id,)
     )
     sizing_moved = bool(size and size["at"] and row["market_size_at"] and size["at"] != row["market_size_at"])
-    path = Path(row["path"])
+    path = resolve_brief(row["path"])
     return {
         "topic_id": topic_id,
         "generated_at": row["generated_at"],
@@ -934,16 +934,16 @@ def brief_for_topic(db: Database, topic_id: str) -> dict[str, Any] | None:
         "filename": row["filename"],
         "bytes": row["bytes"],
         "content_hash": row["content_hash"],
-        "exists": path.exists(),
+        "exists": path is not None,
         "stale": (bool(topic and topic["version"] != row["topic_version"])
-                  or description_moved or sizing_moved or not path.exists()),
+                  or description_moved or sizing_moved or path is None),
         # Which of the three it is, so the warning can say something useful
         # rather than "this is old".
         "stale_reason": (
             "the topic has been refreshed since" if topic and topic["version"] != row["topic_version"]
             else "the written description has been regenerated since" if description_moved
             else "the market size has been recomputed since" if sizing_moved
-            else "the PDF file is missing" if not path.exists() else None
+            else "the PDF file is missing" if path is None else None
         ),
         "weight_set": row["weight_set"],
         "sizing_version": row["sizing_version"],
@@ -957,5 +957,28 @@ def brief_path(db: Database, topic_id: str) -> Path | None:
     row = db.query_one("SELECT path FROM topic_briefs WHERE opportunity_id = ?", (topic_id,))
     if row is None:
         return None
-    path = Path(row["path"])
-    return path if path.exists() else None
+    return resolve_brief(row["path"])
+
+
+def resolve_brief(recorded: str) -> Path | None:
+    """The brief file for a recorded path, or None if it is not on this machine.
+
+    The path column records where the brief was written, which is a machine the
+    deployment has never seen: briefs are produced by the batch job and shipped
+    as files, so on a server the recorded directory does not exist. The filename
+    is stable, so fall back to the directory this process actually uses. Without
+    this every brief 404s in Azure and the UI reports none were ever generated.
+    """
+    path = Path(recorded)
+    if path.exists():
+        return path
+    fallback = brief_dir() / path.name
+    return fallback if fallback.exists() else None
+
+
+def brief_dir() -> Path:
+    """Where briefs live for this process — see BriefBuilder.output_dir."""
+    configured = os.getenv("RADAR_BRIEF_DIR")
+    if configured:
+        return Path(configured)
+    return Path(os.getenv("RADAR_DB_PATH", "data/radar.db")).parent / "briefs"
