@@ -1,0 +1,55 @@
+# Crosswalk: CPV (Common Procurement Vocabulary) -> radar vertical (LK-02, DR-12).
+# Carried by: TED and national procurement portals.
+# This is the bridge that turns tender notices into buying signals per
+# opportunity space (Table 25).
+#
+# VERSIONED, MANY-TO-MANY, WITH A CONFIDENCE WEIGHT PER ROW AND A NAMED OWNER
+# (DR-12). Every downstream number inherits this table's errors (§4.5.2), so
+# `confidence` is used as a multiplier on the resulting signal, not ignored.
+# Matching is by CPV prefix, longest prefix wins.
+version,cpv_prefix,vertical,confidence,owner,note
+2026-08-a,331,healthcare,0.85,taxonomy-curator,Medical equipment
+2026-08-a,3311,healthcare,0.90,taxonomy-curator,Imaging equipment
+2026-08-a,3319,healthcare,0.80,taxonomy-curator,Medical consumables
+2026-08-a,851,healthcare,0.95,taxonomy-curator,Health services
+2026-08-a,488140,healthcare,0.95,taxonomy-curator,Medical information systems
+2026-08-a,357,defense,0.90,taxonomy-curator,Military equipment
+2026-08-a,3511,defense,0.75,taxonomy-curator,Security and emergency equipment
+2026-08-a,3512,energy,0.40,taxonomy-curator,Surveillance/security systems - frequently critical infrastructure
+2026-08-a,3512,public_sector,0.40,taxonomy-curator,Surveillance/security systems - frequently public buyers
+2026-08-a,350,aerospace_defense,0.55,taxonomy-curator,Security defence and safety equipment
+2026-08-a,751,public_sector,0.95,taxonomy-curator,Administration services
+2026-08-a,752,public_sector,0.90,taxonomy-curator,Public order and safety services
+2026-08-a,80,public_sector,0.70,taxonomy-curator,Education and training services
+2026-08-a,090,energy,0.85,taxonomy-curator,Petroleum fuels electricity and other energy
+2026-08-a,713,energy,0.45,taxonomy-curator,Engineering services - energy-weighted
+2026-08-a,713,construction,0.45,taxonomy-curator,Engineering services - construction-weighted
+2026-08-a,45,construction,0.90,taxonomy-curator,Construction work
+2026-08-a,4531,construction,0.85,taxonomy-curator,Electrical installation work
+2026-08-a,71,construction,0.60,taxonomy-curator,Architectural and engineering services
+2026-08-a,34,transport_logistics,0.70,taxonomy-curator,Transport equipment
+2026-08-a,3411,automotive,0.65,taxonomy-curator,Motor vehicles
+2026-08-a,3471,transport_logistics,0.75,taxonomy-curator,Aircraft and spacecraft parts
+2026-08-a,60,transport_logistics,0.90,taxonomy-curator,Transport services
+2026-08-a,63,transport_logistics,0.85,taxonomy-curator,Supporting transport services
+2026-08-a,907,natural_resources,0.55,taxonomy-curator,Environmental services - water and waste
+2026-08-a,9073,manufacturing,0.45,taxonomy-curator,Pollution monitoring - industrial emitters
+2026-08-a,41,natural_resources,0.80,taxonomy-curator,Water collection and distribution
+2026-08-a,14,natural_resources,0.85,taxonomy-curator,Mining basic metals and related products
+2026-08-a,42,manufacturing,0.75,taxonomy-curator,Industrial machinery
+2026-08-a,38,manufacturing,0.55,taxonomy-curator,Laboratory optical and precision equipment
+2026-08-a,43,natural_resources,0.65,taxonomy-curator,Machinery for mining and quarrying
+2026-08-a,66,financial_services,0.95,taxonomy-curator,Financial and insurance services
+2026-08-a,921,media_entertainment,0.85,taxonomy-curator,Motion picture and video services
+2026-08-a,922,media_entertainment,0.85,taxonomy-curator,Radio and television services
+2026-08-a,798,media_entertainment,0.40,taxonomy-curator,Publishing services
+# Horizontal CPV codes: IT software and telecom are bought by every vertical.
+# They carry NO vertical signal and must not be attributed to one. They are
+# resolved via cpv_to_use_case.csv instead.
+2026-08-a,72,HORIZONTAL,1.00,taxonomy-curator,IT services - no vertical signal
+2026-08-a,48,HORIZONTAL,1.00,taxonomy-curator,Software packages - no vertical signal
+2026-08-a,64,HORIZONTAL,1.00,taxonomy-curator,Postal and telecommunications services - no vertical signal
+2026-08-a,32,HORIZONTAL,1.00,taxonomy-curator,Radio television communication equipment - no vertical signal
+2026-08-a,30,HORIZONTAL,1.00,taxonomy-curator,Office and computing machinery - no vertical signal
+2026-08-a,50,HORIZONTAL,1.00,taxonomy-curator,Repair and maintenance services - no vertical signal
+2026-08-a,797,HORIZONTAL,0.80,taxonomy-curator,Investigation and security services - no reliable vertical signal

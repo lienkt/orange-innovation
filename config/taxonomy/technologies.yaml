@@ -1,0 +1,317 @@
+# Technology vocabulary — SPRINT 0 DELIVERABLE (§3.3).
+# Target 25-40 technologies with definition, synonyms and exclusions so the LLM
+# can be constrained to valid values (§4.4.2).
+#
+# `cpc` lists the curated CPC/IPC subset used to join patent evidence. §4.5.2
+# warns this mapping is coarse and needs a curated subset per technology rather
+# than a full crosswalk — that is what these lists are.
+# `orange_asset` flags technologies where Orange holds a named public asset,
+# used as a right-to-win prior, never as an attractiveness input.
+version: "2026-08-a"
+owner: "taxonomy-curator"
+count_target: "25-40"
+items:
+
+  - id: private_5g
+    label: Private 5G / LTE
+    definition: Dedicated cellular network deployed for a single organisation or site.
+    synonyms: [private cellular, private LTE, campus 5G, NPN, standalone private network]
+    exclusions: [5g_ran_oran, network_slicing]
+    cpc: ["H04W16/", "H04W84/04"]
+    orange_asset: true
+
+  - id: 5g_ran_oran
+    label: 5G RAN and Open RAN
+    definition: Public mobile radio access technology, including disaggregated and open interfaces.
+    synonyms: [Open RAN, O-RAN, vRAN, 5G SA, radio access network]
+    exclusions: [private_5g, network_slicing]
+    cpc: ["H04W88/08", "H04B7/"]
+    orange_asset: true
+
+  - id: network_slicing
+    label: Network slicing
+    definition: Logically isolated end-to-end network partitions with guaranteed characteristics over shared infrastructure.
+    synonyms: [5G slicing, network partitioning, guaranteed SLA slice]
+    exclusions: [private_5g, sd_wan]
+    cpc: ["H04L41/", "H04W28/"]
+    orange_asset: true
+
+  - id: sd_wan
+    label: SD-WAN
+    definition: Software-defined wide area networking with application-aware path selection.
+    synonyms: [software-defined WAN, flexible SD-WAN, overlay networking]
+    exclusions: [sase, network_slicing]
+    cpc: ["H04L45/", "H04L12/46"]
+    orange_asset: true
+
+  - id: sase
+    label: SASE and SSE
+    definition: Converged network and security delivered from the cloud edge, including SWG, CASB and ZTNA.
+    synonyms: [secure access service edge, SSE, ZTNA, cloud security edge]
+    exclusions: [sd_wan, zero_trust_architecture]
+    cpc: ["H04L63/"]
+    orange_asset: true
+
+  - id: satellite_ntn
+    label: Satellite and non-terrestrial networks
+    definition: LEO/GEO satellite and direct-to-device connectivity integrated with terrestrial networks.
+    synonyms: [LEO, NTN, VSAT, direct-to-device, satellite IoT]
+    exclusions: [private_5g]
+    cpc: ["H04B7/185", "H04W84/06"]
+    orange_asset: false
+
+  - id: lpwan
+    label: LPWAN (LoRaWAN, NB-IoT, LTE-M)
+    definition: Low-power wide-area radio technologies for battery-operated sensors.
+    synonyms: [LoRa, LoRaWAN, NB-IoT, LTE-M, Sigfox, low power wide area]
+    exclusions: [private_5g, low_power_sensors]
+    cpc: ["H04W52/02", "H04W4/70"]
+    orange_asset: true
+
+  - id: wifi6e_7
+    label: Wi-Fi 6E / Wi-Fi 7
+    definition: Latest-generation wireless LAN including 6 GHz operation and deterministic features.
+    synonyms: [Wi-Fi 6, Wi-Fi 7, WLAN, 802.11be, 6 GHz]
+    exclusions: [private_5g, indoor_positioning_uwb]
+    cpc: ["H04W84/12"]
+    orange_asset: false
+
+  - id: edge_computing
+    label: Edge computing
+    definition: Compute and storage placed close to data production, on-premise or at network edge.
+    synonyms: [MEC, multi-access edge, far edge, on-prem cloud, fog computing]
+    exclusions: [containers_kubernetes, sovereign_cloud]
+    cpc: ["H04L67/10", "G06F9/50"]
+    orange_asset: true
+
+  - id: sovereign_cloud
+    label: Sovereign and trusted cloud
+    definition: Cloud infrastructure operated under a defined jurisdiction with certified isolation from foreign control.
+    synonyms: [SecNumCloud, trusted cloud, national cloud, EUCS, Cloud Avenue, data residency cloud]
+    exclusions: [edge_computing, confidential_computing]
+    cpc: ["H04L9/", "G06F21/62"]
+    orange_asset: true
+
+  - id: containers_kubernetes
+    label: Containers and Kubernetes
+    definition: Containerised workload packaging and orchestration.
+    synonyms: [Kubernetes, K8s, container platform, OpenShift, managed Kubernetes]
+    exclusions: [edge_computing]
+    cpc: ["G06F9/455"]
+    orange_asset: true
+
+  - id: cloud_data_platform
+    label: Cloud data platform
+    definition: Governed storage, processing and serving of enterprise data at scale.
+    synonyms: [lakehouse, data warehouse, data lake, data fabric, data mesh]
+    exclusions: [mlops_platform, knowledge_graph]
+    cpc: ["G06F16/"]
+    orange_asset: true
+
+  - id: machine_learning
+    label: Machine learning
+    definition: Supervised and unsupervised statistical learning for prediction, classification and anomaly detection.
+    synonyms: [predictive modelling, ML, anomaly detection, forecasting models, time-series ML]
+    exclusions: [generative_ai, computer_vision, tinyml_embedded_ai]
+    cpc: ["G06N20/", "G06N3/08"]
+    orange_asset: true
+
+  - id: generative_ai
+    label: Generative AI
+    definition: Large language and multimodal models generating text, code or media.
+    synonyms: [LLM, foundation model, GPT, large language model, multimodal model]
+    exclusions: [agentic_ai, rag_vector_search, nlp_speech]
+    cpc: ["G06N3/045", "G06F40/"]
+    orange_asset: true
+
+  - id: agentic_ai
+    label: Agentic AI
+    definition: LLM-driven systems that plan and execute multi-step tasks against tools and systems.
+    synonyms: [AI agents, autonomous agents, tool-using AI, agent orchestration, copilot agents]
+    exclusions: [generative_ai]
+    cpc: ["G06N5/04"]
+    orange_asset: true
+
+  - id: rag_vector_search
+    label: Retrieval-augmented generation and vector search
+    definition: Grounding model output in retrieved enterprise content via embeddings and vector indexes.
+    synonyms: [RAG, vector database, semantic search, embedding search, grounding]
+    exclusions: [generative_ai, knowledge_graph]
+    cpc: ["G06F16/33"]
+    orange_asset: false
+
+  - id: computer_vision
+    label: Computer vision
+    definition: Automated interpretation of images and video for detection, classification and measurement.
+    synonyms: [machine vision, video analytics, image recognition, visual AI, object detection]
+    exclusions: [machine_learning, ar_vr_xr]
+    cpc: ["G06V", "G06T7/"]
+    orange_asset: true
+
+  - id: nlp_speech
+    label: NLP and speech processing
+    definition: Understanding, transcribing and synthesising human language in text and voice.
+    synonyms: [speech recognition, ASR, TTS, NLU, voice AI, transcription]
+    exclusions: [generative_ai]
+    cpc: ["G10L15/", "G06F40/30"]
+    orange_asset: true
+
+  - id: tinyml_embedded_ai
+    label: Embedded and on-device AI
+    definition: Inference running on constrained microcontrollers or sensors rather than in the cloud.
+    synonyms: [TinyML, on-device inference, embedded AI, edge AI chip, MCU inference]
+    exclusions: [edge_computing, machine_learning]
+    cpc: ["G06N3/063"]
+    orange_asset: false
+
+  - id: mlops_platform
+    label: MLOps and AI platform
+    definition: Tooling to build, deploy, monitor and govern machine learning and AI models in production.
+    synonyms: [model serving, ML lifecycle, AI factory, model monitoring, LLMOps]
+    exclusions: [cloud_data_platform, generative_ai]
+    cpc: ["G06N20/00"]
+    orange_asset: true
+
+  - id: knowledge_graph
+    label: Knowledge graph and semantic modelling
+    definition: Typed entity-relationship representation of a domain, queryable and inferable.
+    synonyms: [ontology, semantic layer, graph database, linked data, RDF]
+    exclusions: [rag_vector_search, cloud_data_platform]
+    cpc: ["G06F16/36", "G06N5/02"]
+    orange_asset: false
+
+  - id: digital_twin
+    label: Digital twin
+    definition: Synchronised virtual representation of a physical asset, system or network.
+    synonyms: [virtual replica, asset twin, network twin, simulation model]
+    exclusions: [ar_vr_xr, machine_learning]
+    cpc: ["G05B17/02", "G06F30/"]
+    orange_asset: false
+
+  - id: iot_platform
+    label: IoT platform
+    definition: Device management, data ingestion and application enablement for connected devices.
+    synonyms: [device management platform, IoT enablement, Live Objects, M2M platform]
+    exclusions: [lpwan, low_power_sensors]
+    cpc: ["H04W4/70", "H04L67/12"]
+    orange_asset: true
+
+  - id: low_power_sensors
+    label: Industrial sensors and instrumentation
+    definition: Physical sensing hardware producing the measurements a use case depends on.
+    synonyms: [sensors, instrumentation, condition sensors, gas sensors, vibration sensors]
+    exclusions: [lpwan, iot_platform, wearables]
+    cpc: ["G01D", "G01N"]
+    orange_asset: false
+
+  - id: wearables
+    label: Industrial wearables
+    definition: Body-worn devices for worker location, vitals, exposure or hands-free interaction.
+    synonyms: [smart PPE, connected badge, exoskeleton sensor, body-worn device, smart helmet]
+    exclusions: [low_power_sensors, ar_vr_xr]
+    cpc: ["A61B5/", "G08B21/02"]
+    orange_asset: false
+
+  - id: indoor_positioning_uwb
+    label: RTLS (UWB, BLE, RFID)
+    definition: Real-time location technologies for indoor and confined environments.
+    synonyms: [UWB, RFID, BLE beacons, RTLS, indoor positioning]
+    exclusions: [wifi6e_7, lpwan]
+    cpc: ["G01S5/", "G06K7/10"]
+    orange_asset: false
+
+  - id: drones_uav
+    label: Drones and UAS
+    definition: Unmanned aerial systems used for inspection, surveillance, or as the threat being countered.
+    synonyms: [UAV, UAS, counter-drone, aerial inspection, BVLOS]
+    exclusions: [robotics_agv]
+    cpc: ["B64U", "G08G5/"]
+    orange_asset: true
+
+  - id: robotics_agv
+    label: Robotics and AGV/AMR
+    definition: Mobile and fixed robots executing physical tasks in industrial or logistics settings.
+    synonyms: [AGV, AMR, cobot, industrial robot, autonomous mobile robot]
+    exclusions: [drones_uav, digital_twin]
+    cpc: ["B25J", "G05D1/"]
+    orange_asset: false
+
+  - id: ar_vr_xr
+    label: AR / VR / XR
+    definition: Augmented, virtual and mixed reality interfaces for training, guidance and remote assistance.
+    synonyms: [augmented reality, virtual reality, mixed reality, smart glasses, immersive]
+    exclusions: [digital_twin, wearables]
+    cpc: ["G06T19/006", "G02B27/01"]
+    orange_asset: false
+
+  - id: blockchain_dlt
+    label: Blockchain and DLT
+    definition: Distributed ledger technology for shared, tamper-evident records across organisations.
+    synonyms: [distributed ledger, DLT, smart contracts, verifiable credentials, tokenisation]
+    exclusions: [knowledge_graph]
+    cpc: ["H04L9/50", "G06Q20/38"]
+    orange_asset: false
+
+  - id: post_quantum_cryptography
+    label: Post-quantum cryptography
+    definition: Cryptographic algorithms believed resistant to attack by quantum computers.
+    synonyms: [PQC, quantum-safe cryptography, ML-KEM, Kyber, Dilithium, crypto agility]
+    exclusions: [quantum_key_distribution]
+    cpc: ["H04L9/30", "H04L9/08"]
+    orange_asset: true
+
+  - id: quantum_key_distribution
+    label: Quantum key distribution
+    definition: Key exchange whose security rests on quantum physical properties of the channel.
+    synonyms: [QKD, quantum networking, quantum-secured link]
+    exclusions: [post_quantum_cryptography]
+    cpc: ["H04L9/0852"]
+    orange_asset: true
+
+  - id: confidential_computing
+    label: Confidential computing
+    definition: Hardware-enforced isolation of data and code while in use.
+    synonyms: [TEE, enclave, SGX, secure enclave, encrypted memory]
+    exclusions: [sovereign_cloud, post_quantum_cryptography]
+    cpc: ["G06F21/53", "G06F21/72"]
+    orange_asset: false
+
+  - id: zero_trust_architecture
+    label: Zero trust architecture
+    definition: Continuous verification of every access request regardless of network position.
+    synonyms: [zero trust, ZTA, micro-segmentation, least privilege architecture]
+    exclusions: [sase, siem_soar]
+    cpc: ["H04L63/10", "H04L63/20"]
+    orange_asset: true
+
+  - id: siem_soar
+    label: SIEM and SOAR
+    definition: Security event aggregation, correlation and automated response orchestration.
+    synonyms: [SIEM, SOAR, XDR platform, security analytics, detection engineering]
+    exclusions: [observability_aiops, zero_trust_architecture]
+    cpc: ["H04L63/1425"]
+    orange_asset: true
+
+  - id: observability_aiops
+    label: Observability and AIOps
+    definition: Telemetry collection and ML-driven detection, correlation and remediation for IT and network operations.
+    synonyms: [AIOps, observability, APM, telemetry analytics, self-healing operations]
+    exclusions: [siem_soar, machine_learning]
+    cpc: ["G06F11/34", "H04L41/16"]
+    orange_asset: true
+
+  - id: process_mining
+    label: Process mining and automation
+    definition: Discovering and automating business process flows from system event logs.
+    synonyms: [RPA, process discovery, workflow automation, task mining, BPM]
+    exclusions: [observability_aiops, agentic_ai]
+    cpc: ["G06Q10/06"]
+    orange_asset: false
+
+  - id: api_integration_platform
+    label: API and integration platform
+    definition: Exposing and composing systems through managed interfaces and event streams.
+    synonyms: [API management, iPaaS, event streaming, ESB, network APIs, CAMARA]
+    exclusions: [containers_kubernetes]
+    cpc: ["G06F9/54", "H04L67/02"]
+    orange_asset: true

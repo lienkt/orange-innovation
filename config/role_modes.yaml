@@ -1,0 +1,51 @@
+# Role modes (FR-13, FR-31, Table 33).
+# §4.5.3: role modes are not arbitrary interface presets — they fall out of
+# portfolio distance. Sales sees L0/L1, presales L0-L2, strategy L2-L4.
+version: "2026-08-a"
+modes:
+  - id: strategist
+    label: Strategist / Innovator
+    description: Decide where to invest study and prototyping effort next quarter.
+    ranking:
+      # Linear blend over normalised topic attributes. Weights sum is not
+      # constrained; the result is used for ordering only, never displayed as a
+      # score (SC-12: the two scores are never collapsed).
+      attractiveness: 0.60
+      novelty_momentum: 0.30
+      right_to_win: 0.00
+      portfolio_distance: 0.10   # positive: further from the portfolio ranks higher
+    link_types: [L1, L2, L3, L4]
+    default_filters: {}
+    low_rtw_is_penalty: false
+    primary_action: deep_dive_brief
+    acceptance: "Finds at least 3 relevant topics for a chosen vertical or domain (Table 13)."
+
+  - id: sales
+    label: Sales
+    description: Open or re-open a conversation with a named account.
+    ranking:
+      attractiveness: 0.25
+      right_to_win: 0.45
+      proof_point_density: 0.30
+      portfolio_distance: -0.30  # negative: closer to the portfolio ranks higher
+    link_types: [L0, L1]
+    default_filters:
+      require_reference_in_vertical: true   # §4.5.3 computable definition of
+                                            # "enough internal content to back up"
+    low_rtw_is_penalty: true
+    primary_action: conversation_opener
+    acceptance: "Finds 1-2 topics tailored to a customer's vertical and persona (Table 13)."
+
+  - id: presales
+    label: Presales / Proposal
+    description: Differentiate a specific bid and assemble the supporting material.
+    ranking:
+      attractiveness: 0.30
+      right_to_win: 0.35
+      differentiation: 0.35   # Orange has assets and the market has few credible providers
+      portfolio_distance: -0.10
+    link_types: [L0, L1, L2]
+    default_filters: {}
+    low_rtw_is_penalty: true
+    primary_action: bid_brief
+    acceptance: "Identifies a differentiating RFP topic and sees how it connects to offerings, partners, proof points or references (Table 13)."

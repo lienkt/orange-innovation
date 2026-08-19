@@ -1,0 +1,150 @@
+# Orange Business Graph — offer / solution nodes (Table 24, LK-01).
+# SOURCE: public offer catalogue as recorded in the requirements document
+# (§2.8, Table 24). Open question 10 (§4.13) asks whether an internal offer
+# catalogue with stable identifiers exists and can be exported — if it does, it
+# replaces this file and the ids here become aliases.
+#
+# Every node carries `source` and `as_of` so the graph is auditable to the same
+# standard as the signals (NFR-02, DR-11).
+version: "2026-08-a"
+owner: "business-graph-curator"
+as_of: "2026-08-17"
+source: "Orange_Innovation_Radar_Requirements_and_Approach.docx §2.8, Table 24"
+
+offers:
+  - id: evolution_platform
+    label: Evolution Platform
+    definition: Network-as-a-service catalogue.
+    domains: [connectivity_solutions]
+    addresses_use_cases: [site_connectivity_resilience, network_automation, iot_connectivity_management]
+    technologies: [sd_wan, network_slicing, api_integration_platform]
+    status: live
+    sovereign: false
+
+  - id: live_intelligence
+    label: Live Intelligence
+    definition: Generative AI assistant offer delivered in a trusted environment.
+    domains: [ex_employee_experience, cloud]
+    addresses_use_cases: [employee_assistant, knowledge_management, document_intelligence]
+    technologies: [generative_ai, rag_vector_search, nlp_speech]
+    status: live
+    sovereign: true
+
+  - id: live_intelligence_studio
+    label: Live Intelligence Studio
+    definition: Building, deploying and managing AI agents in a trusted environment. Announced at the Orange Business Summit, 17-18 March 2026.
+    domains: [cloud, ex_employee_experience]
+    addresses_use_cases: [employee_assistant, ai_model_governance, sovereign_ai_enclave, it_operations_automation]
+    technologies: [agentic_ai, generative_ai, mlops_platform]
+    status: live
+    announced: "2026-03-17"
+    sovereign: true
+
+  - id: live_objects
+    label: Live Objects
+    definition: IoT device management and data enablement platform.
+    domains: [ox_smart_industries, connectivity_solutions]
+    addresses_use_cases: [iot_connectivity_management, asset_tracking, predictive_maintenance, cold_chain_monitoring, energy_optimization]
+    technologies: [iot_platform, lpwan, machine_learning]
+    status: live
+    sovereign: false
+
+  - id: flexible_sd_wan
+    label: Flexible SD-WAN
+    definition: Managed software-defined wide area network service.
+    domains: [connectivity_solutions]
+    addresses_use_cases: [site_connectivity_resilience, network_automation]
+    technologies: [sd_wan, sase]
+    status: live
+    sovereign: false
+
+  - id: cloud_avenue_secnum
+    label: Cloud Avenue / Ready SecNumCloud
+    definition: Sovereign cloud infrastructure, SecNumCloud-qualified track.
+    domains: [cloud]
+    addresses_use_cases: [data_sovereignty_protection, legacy_application_migration, sovereign_ai_enclave, clinical_data_interoperability]
+    technologies: [sovereign_cloud, containers_kubernetes, edge_computing]
+    status: live
+    sovereign: true
+
+  - id: orange_drone_guardian
+    label: Orange Drone Guardian
+    definition: Detection and classification of intrusive drones in low-altitude airspace; initially France, on sovereign infrastructure. Announced March 2026.
+    domains: [cybersecurity, connectivity_solutions]
+    addresses_use_cases: [drone_airspace_protection, critical_infrastructure_monitoring]
+    technologies: [drones_uav, computer_vision, machine_learning]
+    status: live
+    announced: "2026-03-17"
+    geographies: [FR]
+    sovereign: true
+
+  - id: quantum_defender
+    label: Quantum Defender / quantum-safe offers
+    definition: Post-quantum cryptography and quantum key distribution offers.
+    domains: [cybersecurity]
+    addresses_use_cases: [post_quantum_migration, data_sovereignty_protection]
+    technologies: [post_quantum_cryptography, quantum_key_distribution]
+    status: live
+    sovereign: true
+
+  - id: contact_center_access
+    label: Contact Center Access
+    definition: Contact centre connectivity and cloud contact centre enablement.
+    domains: [cx_customer_experience]
+    addresses_use_cases: [contact_center_automation, customer_self_service]
+    technologies: [nlp_speech, api_integration_platform]
+    status: live
+    sovereign: false
+
+  - id: business_talk
+    label: Business Talk
+    definition: Enterprise voice service, with trust and AI features added in 2026.
+    domains: [ex_employee_experience, cx_customer_experience]
+    addresses_use_cases: [workplace_collaboration, contact_center_automation]
+    technologies: [nlp_speech, generative_ai]
+    status: live
+    sovereign: false
+
+  - id: live_collaboration
+    label: Live Collaboration
+    definition: Modular sovereign collaboration hosted on Cloud Avenue SecNum. Announced March 2026.
+    domains: [ex_employee_experience]
+    addresses_use_cases: [workplace_collaboration]
+    technologies: [sovereign_cloud]
+    status: live
+    announced: "2026-03-17"
+    sovereign: true
+
+  - id: orange_cyberdefense_services
+    label: Orange Cyberdefense managed services
+    definition: >-
+      Managed detection and response delivered from 18 SOCs and 15 CyberSOCs.
+      Targeting €2bn revenue by 2030 under Trust the future.
+    domains: [cybersecurity]
+    addresses_use_cases: [threat_detection_response, ot_ics_security, identity_access_management, regulatory_compliance_reporting, supply_chain_risk_monitoring]
+    technologies: [siem_soar, zero_trust_architecture, sase, observability_aiops]
+    status: live
+    sovereign: true
+
+  - id: private_networks_offer
+    label: Private mobile networks
+    definition: >-
+      4G/5G private mobile network services. Gartner Magic Quadrant leader 2026
+      for 4G and 5G Private Mobile Network Services.
+    domains: [connectivity_solutions, ox_smart_industries]
+    addresses_use_cases: [private_network_deployment, indoor_coverage, remote_operations, worker_safety_monitoring]
+    technologies: [private_5g, 5g_ran_oran, edge_computing]
+    status: live
+    sovereign: false
+
+  - id: enovacom_enovalife
+    label: Enovacom / Enovalife
+    definition: >-
+      Health interoperability and clinical data subsidiaries; sovereign full stack
+      from network to clinical data under SecNumCloud and HDS.
+    domains: [cloud]
+    addresses_use_cases: [clinical_data_interoperability, remote_patient_monitoring, data_sovereignty_protection]
+    technologies: [sovereign_cloud, api_integration_platform]
+    status: live
+    verticals: [healthcare]
+    sovereign: true

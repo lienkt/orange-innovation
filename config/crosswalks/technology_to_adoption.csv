@@ -1,0 +1,57 @@
+# Crosswalk: radar technology -> Eurostat enterprise-adoption indicator (§4.3.4).
+#
+# The second factor of "enterprise count x adoption rate x contract value". The
+# dataset column names an entry in sizing.yaml `reference_datasets`; the
+# indicator column names a series inside it.
+#
+# `proxy` is the honest column. The enterprise ICT survey measures four things
+# well — cloud, AI, IoT and security practice — and measures enterprise
+# connectivity procurement not at all. Rather than invent an adoption rate for
+# private 5G, the connectivity technologies borrow the nearest measured
+# behaviour and say so: proxy=yes widens the published range (see
+# sizing.yaml `uncertainty.adoption_proxy`), reduces the confidence grade, and
+# prints the substitution in the brief so a reader can disagree with it.
+#
+# There is no HORIZONTAL escape hatch here. A technology with no row gets no
+# bottom-up estimate at all — the procurement-observed method still applies, and
+# §4.3.4 prefers a missing number to a manufactured one.
+#
+version,technology,dataset,indicator,proxy,confidence,owner,note
+2026-08-a,machine_learning,ict_ai,E_AI_TML,no,1.0,innovation-radar-curator,Enterprises using machine learning for data analysis
+2026-08-a,generative_ai,ict_ai,E_AI_TNLG,no,0.9,innovation-radar-curator,Natural language generation
+2026-08-a,agentic_ai,ict_ai,E_AI_TPA,no,0.8,innovation-radar-curator,AI automating workflows or assisting decisions
+2026-08-a,rag_vector_search,ict_ai,E_AI_TTM,no,0.8,innovation-radar-curator,Text mining / analysis of written language
+2026-08-a,nlp_speech,ict_ai,E_AI_TSR,no,0.9,innovation-radar-curator,Speech recognition
+2026-08-a,computer_vision,ict_ai,E_AI_TIR,no,1.0,innovation-radar-curator,Image recognition
+2026-08-a,robotics_agv,ict_ai,E_AI_TAR,no,0.9,innovation-radar-curator,Autonomous machines and vehicles
+2026-08-a,drones_uav,ict_ai,E_AI_TAR,yes,0.6,innovation-radar-curator,Autonomous machines — includes autonomous drones
+2026-08-a,process_mining,ict_ai,E_AI_TPA,yes,0.6,innovation-radar-curator,Nearest measured behaviour is AI workflow automation
+2026-08-a,mlops_platform,ict_ai,E_AI_TANY,yes,0.6,innovation-radar-curator,Any AI use — MLOps buyers are a subset
+2026-08-a,tinyml_embedded_ai,ict_ai,E_AI_TANY,yes,0.5,innovation-radar-curator,No on-device AI series published
+2026-08-a,knowledge_graph,ict_ai,E_AI_TTM,yes,0.5,innovation-radar-curator,Text and language analysis as the nearest series
+2026-08-a,ar_vr_xr,ict_ai,E_AI_TIR,yes,0.4,innovation-radar-curator,No XR series published; image processing as nearest
+2026-08-a,sovereign_cloud,ict_cloud,E_CC,no,1.0,innovation-radar-curator,Enterprises buying paid cloud services
+2026-08-a,cloud_data_platform,ict_cloud,E_CC_PDB,no,1.0,innovation-radar-curator,Cloud-hosted database
+2026-08-a,containers_kubernetes,ict_cloud,E_CC_PDEV,no,0.9,innovation-radar-curator,Cloud application development platform
+2026-08-a,api_integration_platform,ict_cloud,E_CC_PDEV,yes,0.6,innovation-radar-curator,Development and integration platform as nearest series
+2026-08-a,edge_computing,ict_cloud,E_CC_PCPU,yes,0.6,innovation-radar-curator,Cloud compute purchase as nearest series
+2026-08-a,observability_aiops,ict_cloud,E_CC_PDEV,yes,0.5,innovation-radar-curator,No observability series published
+2026-08-a,blockchain_dlt,ict_cloud,E_CC,yes,0.4,innovation-radar-curator,No DLT series at NACE level
+2026-08-a,confidential_computing,ict_security,E_SECMDENC,yes,0.6,innovation-radar-curator,Encryption of data and documents as nearest series
+2026-08-a,iot_platform,ict_iot,E_IOT1,no,1.0,innovation-radar-curator,Enterprises using IoT
+2026-08-a,low_power_sensors,ict_iot,E_IOTDPP,no,0.9,innovation-radar-curator,IoT for production processes
+2026-08-a,digital_twin,ict_iot,E_IOTDPP,yes,0.6,innovation-radar-curator,IoT in production as the observable precursor
+2026-08-a,indoor_positioning_uwb,ict_iot,E_IOTDLOG,no,0.8,innovation-radar-curator,IoT for logistics and tracking
+2026-08-a,wearables,ict_iot,E_IOTDSEC,yes,0.5,innovation-radar-curator,IoT for premises safety as nearest series
+2026-08-a,lpwan,ict_iot,E_IOT1,yes,0.7,innovation-radar-curator,IoT adoption as the connectivity demand proxy
+2026-08-a,private_5g,ict_iot,E_IOT1,yes,0.6,innovation-radar-curator,No private-network series; industrial IoT use as proxy
+2026-08-a,5g_ran_oran,ict_iot,E_IOT1,yes,0.4,innovation-radar-curator,No RAN series; industrial IoT use as proxy
+2026-08-a,network_slicing,ict_iot,E_IOT1,yes,0.4,innovation-radar-curator,No slicing series; industrial IoT use as proxy
+2026-08-a,satellite_ntn,ict_iot,E_IOT1,yes,0.4,innovation-radar-curator,No NTN series; remote-site IoT use as proxy
+2026-08-a,zero_trust_architecture,ict_security,E_SECMNAC,no,0.9,innovation-radar-curator,Network access control
+2026-08-a,siem_soar,ict_security,E_SECMSMS,no,0.9,innovation-radar-curator,Monitoring for suspicious activity
+2026-08-a,post_quantum_cryptography,ict_security,E_SECMDENC,yes,0.6,innovation-radar-curator,Encryption users are the migration population
+2026-08-a,quantum_key_distribution,ict_security,E_SECMDENC,yes,0.4,innovation-radar-curator,Encryption users as the addressable population
+2026-08-a,sase,ict_security,E_SECMVPN,no,0.8,innovation-radar-curator,VPN use — the estate SASE replaces
+2026-08-a,sd_wan,ict_security,E_SECMVPN,yes,0.6,innovation-radar-curator,VPN use as the branch-network proxy
+2026-08-a,wifi6e_7,ict_cloud,E_CC,yes,0.4,innovation-radar-curator,No enterprise Wi-Fi series; digital-buyer proxy

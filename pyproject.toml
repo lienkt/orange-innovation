@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orange-innovation-radar"
+version = "0.1.0"
+description = "Orange Business Opportunity Spaces / Innovation Radar — MVP"
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31",
+  "pyyaml>=6.0",
+  "python-dotenv>=1.0",
+  "pydantic>=2.6",
+  "numpy>=1.26",
+  "scikit-learn>=1.4",
+  "openai>=1.40",
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=2.7"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+radar = "radar.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

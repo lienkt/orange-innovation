@@ -1,0 +1,99 @@
+# Source tiering (§4.3.7, Table 22) — to be calibrated in Sprint 0.
+# Drives evidence quality (SC-04) and the discounted diversity measure (SC-03).
+# Rule (§4.3.7): no topic reaches high attractiveness on tier-4 evidence alone.
+version: "2026-08-a"
+tiers:
+  1:
+    label: Authoritative
+    weight: 1.00
+    description: Legal instruments, regulator publications, official statistics, standards releases, procurement notices, peer-reviewed research.
+  2:
+    label: Independent reporting
+    weight: 0.75
+    description: Established trade and general press with editorial independence.
+  3:
+    label: Practitioner
+    weight: 0.45
+    description: Developer telemetry, community discussion, conference programmes, preprints.
+  4:
+    label: Interested party
+    weight: 0.15
+    description: Vendor press releases, sponsored content, marketing blogs.
+
+# Tier-4 contribution to evidence quality is capped, not merely discounted.
+tier4_contribution_cap: 0.25
+
+# Diversity discount applied to tier-4 publishers in the entropy computation.
+diversity_tier4_discount: 0.35
+
+# Publisher-level overrides applied after the connector's declared default tier.
+# Matched on the publisher domain (suffix match).
+publisher_overrides:
+  # Tier 1 — authoritative
+  "eur-lex.europa.eu": 1
+  "ted.europa.eu": 1
+  "europa.eu": 1
+  "enisa.europa.eu": 1
+  "nist.gov": 1
+  "ec.europa.eu": 1
+  "cordis.europa.eu": 1
+  "arcep.fr": 1
+  "ssi.gouv.fr": 1
+  "bnetza.de": 1
+  "ofcom.org.uk": 1
+  "ibpt.be": 1
+  "3gpp.org": 1
+  "etsi.org": 1
+  "ietf.org": 1
+  "eurostat.ec.europa.eu": 1
+  "oecd.org": 1
+  "worldbank.org": 1
+  "itu.int": 1
+  "sec.gov": 1
+
+  # Tier 2 — independent reporting
+  "reuters.com": 2
+  "ft.com": 2
+  "bloomberg.com": 2
+  "lesechos.fr": 2
+  "theregister.com": 2
+  "lightreading.com": 2
+  "telecoms.com": 2
+  "computerweekly.com": 2
+  "heise.de": 2
+  "zdnet.com": 2
+  "politico.eu": 2
+  "euractiv.com": 2
+  "usine-nouvelle.com": 2
+
+  # Tier 3 — practitioner
+  "arxiv.org": 3
+  "news.ycombinator.com": 3
+  "reddit.com": 3
+  "stackoverflow.com": 3
+  "github.com": 3
+
+  # Tier 4 — interested party (vendor / marketing)
+  "prnewswire.com": 4
+  "businesswire.com": 4
+  "globenewswire.com": 4
+  "einpresswire.com": 4
+  "orange-business.com": 4
+  "orange.com": 4
+  "nvidia.com": 4
+  "microsoft.com": 4
+  "cisco.com": 4
+  "aws.amazon.com": 4
+  "paloaltonetworks.com": 4
+  "nokia.com": 4
+  "ericsson.com": 4
+  "huawei.com": 4
+
+# Domain fragments that force tier 4 regardless of publisher, because the item
+# is a press release even on an otherwise credible domain.
+press_release_markers:
+  - "/press-release"
+  - "/pressrelease"
+  - "/news-release"
+  - "/newsroom/"
+  - "/communique"

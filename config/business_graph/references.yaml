@@ -1,0 +1,195 @@
+# Orange Business Graph — reference case nodes (Table 24, LK-01).
+# SOURCE: published customer-story corpus as recorded in §2.7 and Table 5.
+#
+# TWO DISTINCT THINGS LIVE HERE:
+#  1. `distribution` — the published counts per industry and per expertise area
+#     (Table 5). This is the authoritative input to reference density (SC-13),
+#     because the named list below is the subset the document names, not the
+#     whole corpus.
+#  2. `named` — the individually named references (§2.7), which are what the UI
+#     shows as inspectable proof points (LK-08).
+#
+# §2.7: the distribution is uneven, and a radar that ignores the asymmetry will
+# hand a salesperson a banking topic with no proof point behind it.
+version: "2026-08-a"
+owner: "business-graph-curator"
+as_of: "2026-08-17"
+source: "orange-business.com customer stories, August 2026, via requirements document §2.7 / Table 5"
+
+# Published story counts by industry label (12 labels, not the 15 verticals —
+# reconciliation is in verticals.yaml `story_labels` / `story_label_reconciliation`).
+distribution_by_industry:
+  Manufacturing: 27
+  "Technology & business services": 18
+  "Public sector": 7
+  Retail: 7
+  Transport: 7
+  Automotive: 6
+  Health: 6
+  "Resources and energy": 5
+  "Bank & insurance": 4
+  "Tourism and personal services": 4
+  "Media & gaming": 2
+  "Real estate": 1
+
+distribution_by_expertise:
+  "Digital infrastructure": 26
+  "Operational experience": 19
+  "Employee experience": 11
+  Cybersecurity: 10
+  "Customer experience": 7
+  "Digital Trust": 1
+
+# Below this count of references in a vertical, SC-13 raises an evidence-gap
+# warning on every topic in that vertical.
+evidence_gap_threshold: 5
+
+named:
+  - id: colgate_palmolive
+    label: Colgate-Palmolive
+    verticals: [manufacturing]
+    domains: [connectivity_solutions]
+    demonstrates: [evolution_platform, flexible_sd_wan]
+    use_cases: [site_connectivity_resilience]
+    description: Global network and communications transformation.
+
+  - id: mondelez
+    label: Mondelēz International
+    verticals: [manufacturing]
+    domains: [connectivity_solutions]
+    demonstrates: [evolution_platform, flexible_sd_wan]
+    use_cases: [site_connectivity_resilience]
+    description: Global network and communications transformation.
+
+  - id: toyota
+    label: Toyota
+    verticals: [automotive]
+    domains: [ox_smart_industries, cloud]
+    demonstrates: [live_objects]
+    use_cases: [fleet_management, demand_forecasting]
+    description: Connected cars and road-safety data.
+
+  - id: saint_gobain_glass
+    label: Saint-Gobain Glass
+    verticals: [manufacturing]
+    domains: [ox_smart_industries]
+    demonstrates: [live_objects]
+    use_cases: [asset_tracking, product_traceability]
+    description: Supply-chain IoT.
+
+  - id: boulanger
+    label: Boulanger
+    verticals: [retail]
+    domains: [cx_customer_experience]
+    demonstrates: [live_intelligence, contact_center_access]
+    use_cases: [contact_center_automation, conversational_commerce]
+    description: AI conversational agent; ROI in six weeks.
+
+  - id: microport_cardioflow
+    label: MicroPort CardioFlow
+    verticals: [healthcare, life_sciences]
+    domains: [connectivity_solutions]
+    demonstrates: [live_objects]
+    use_cases: [remote_patient_monitoring]
+    description: Remote cardiac monitoring over trusted connectivity.
+
+  - id: point_one_navigation
+    label: Point One Navigation
+    verticals: [transport_logistics]
+    domains: [connectivity_solutions]
+    demonstrates: [live_objects]
+    use_cases: [iot_connectivity_management, asset_tracking]
+    description: Precision location on IoT SIMs.
+
+  - id: banqsoft
+    label: Banqsoft
+    verticals: [financial_services]
+    domains: [cloud]
+    demonstrates: [cloud_avenue_secnum]
+    use_cases: [data_sovereignty_protection, legacy_application_migration]
+    description: Sovereign cloud for banking and finance.
+
+  - id: sto
+    label: Stø
+    verticals: [financial_services]
+    domains: [cloud]
+    demonstrates: [cloud_avenue_secnum]
+    use_cases: [data_sovereignty_protection]
+    description: Sovereign cloud for banking and finance.
+
+  - id: bliksund
+    label: Bliksund
+    verticals: [healthcare]
+    domains: [cloud, cybersecurity]
+    demonstrates: [cloud_avenue_secnum]
+    use_cases: [legacy_application_migration]
+    description: Managed Kubernetes with security.
+
+  - id: skytale
+    label: Skytale
+    verticals: [manufacturing]
+    domains: [cloud, cybersecurity]
+    demonstrates: [cloud_avenue_secnum]
+    use_cases: [legacy_application_migration]
+    description: Managed Kubernetes with security.
+
+  - id: everise
+    label: Everise
+    verticals: [manufacturing]
+    domains: [cx_customer_experience]
+    demonstrates: [contact_center_access]
+    use_cases: [contact_center_automation]
+    description: Contact centre modernisation.
+
+  - id: grand_paris_sud
+    label: Grand Paris Sud
+    verticals: [public_sector, media_entertainment]
+    domains: [connectivity_solutions]
+    demonstrates: [private_networks_offer]
+    use_cases: [indoor_coverage]
+    description: Secure indoor connectivity for esports arenas.
+
+  - id: carso
+    curation_status: unconfirmed   # named in §2.7 without a description; links below are a curator's starting guess, not a claim
+    label: Carso
+    verticals: [manufacturing]
+    domains: [connectivity_solutions]
+    demonstrates: [evolution_platform]
+    use_cases: [site_connectivity_resilience]
+    description: Named in the source document without a published description.
+
+  - id: tricots_saint_james
+    curation_status: unconfirmed   # named in §2.7 without a description; links below are a curator's starting guess, not a claim
+    label: Tricots Saint James
+    verticals: [manufacturing]
+    domains: [ox_smart_industries]
+    demonstrates: [live_objects]
+    use_cases: [production_scheduling]
+    description: Named in the source document without a published description.
+
+  - id: aberg_connect
+    curation_status: unconfirmed   # named in §2.7 without a description; links below are a curator's starting guess, not a claim
+    label: Aberg Connect
+    verticals: [manufacturing]
+    domains: [connectivity_solutions]
+    demonstrates: [evolution_platform]
+    use_cases: [site_connectivity_resilience]
+    description: Named in the source document without a published description.
+
+  - id: amerigo
+    curation_status: unconfirmed   # named in §2.7 without a description; links below are a curator's starting guess, not a claim
+    label: Amerigo
+    verticals: [manufacturing]
+    domains: [connectivity_solutions]
+    demonstrates: [evolution_platform]
+    use_cases: [site_connectivity_resilience]
+    description: Named in the source document without a published description.
+
+  - id: mpsa
+    curation_status: unconfirmed   # named in §2.7 without a description; links below are a curator's starting guess, not a claim
+    label: MPSA
+    verticals: [manufacturing]
+    domains: [connectivity_solutions]
+    demonstrates: [evolution_platform]
+    use_cases: [site_connectivity_resilience]
+    description: Named in the source document without a published description.

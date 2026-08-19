@@ -1,0 +1,91 @@
+# Trust the future (2026-2030) — the strategic frame against which strategic
+# relevance is computed (SC-06, §2.3).
+#
+# §2.3: "an opportunity space that does not connect to one of these three
+# ambitions is, by the Group's own definition, not strategically relevant."
+# This file is the machine-readable form of that statement, and it is the rubric
+# the strategic-relevance scorer is given (§4.6).
+version: "2026-08-a"
+plan: "Trust the future"
+period: "2026-2030"
+presented: "2026-02-19"
+predecessor: "Lead the future (2023-2025)"
+
+ambitions:
+  - id: customer_intimacy
+    label: Customer intimacy
+    content: >-
+      Deeper, more predictive relationships on a 340m customer base; ~40m
+      additional fixed and mobile customers by 2028; churn improvement of up to
+      3 points in Europe; next-gen apps, AI assistants and marketplaces.
+    radar_implication: >-
+      Mostly B2C-facing, but establishes CVM, AI assistants and marketplace
+      mechanics as Group-level capabilities that B2B topics can borrow.
+    b2b_weight: 0.4
+    markers: [ai assistant, personalisation, churn, marketplace, customer value management, self-service]
+
+  - id: innovative_growth
+    label: Innovative growth
+    content: >-
+      €1bn additional revenue by 2028 vs 2025 on services beyond connectivity,
+      split €500m B2C / €500m trusted B2B services; Orange Cyberdefense targeting
+      €2bn revenue by 2030; named investment in defense and health verticals.
+    radar_implication: >-
+      The primary target zone for the radar. Topics that plausibly contribute to
+      trusted B2B services, cyberdefence, trusted cloud or trusted AI score highest.
+    b2b_weight: 1.0
+    markers: [trusted, sovereign, cyberdefence, beyond connectivity, defense, health, trusted AI, sovereignty]
+
+  - id: excellence_at_scale
+    label: Excellence at scale
+    content: >-
+      Next-generation networks, decommissioning of 2G/3G/copper, AI across
+      operations with €600m of value targeted by 2028, ~€1bn procurement savings,
+      shared platforms shortening time-to-market.
+    radar_implication: >-
+      Legitimises internal/operational opportunity spaces, and makes "we run this
+      ourselves at scale" a usable proof point.
+    b2b_weight: 0.7
+    markers: [automation, operational efficiency, network modernisation, decommissioning, shared platform, AI operations]
+
+# Divisional guidance for Orange Business (§2.3): the division is expected to
+# shift mix toward trusted, higher-value services rather than to grow volume.
+# The radar should favour topics with a credible margin story over topics that
+# merely add revenue.
+divisional_guidance:
+  prefer: margin_over_volume
+  note: "EBITDAaL year-on-year trend improving toward stabilisation."
+
+# Privileged verticals carry a positive weight in strategic relevance (§2.2).
+privileged_verticals:
+  defense: 1.0
+  healthcare: 1.0
+  aerospace_defense: 0.6
+
+# Cross-cutting trust/sovereignty bonus (§2.9 consequence 2). A topic
+# deliverable on sovereign infrastructure is worth more to Orange than the same
+# topic delivered generically, and the model should say so explicitly.
+sovereignty_bonus: 0.15
+
+# Dated Group commitments usable as Now/Next/Later anchors (§2.4 consequence 3).
+commitments:
+  - date: "2028-12-31"
+    label: "€1bn additional revenue beyond connectivity; €600m AI operations value; ~40m additional customers"
+  - date: "2030-12-31"
+    label: "Orange Cyberdefense €2bn revenue; -45% GHG across all scopes vs 2020"
+  - date: "2040-12-31"
+    label: "Net Zero Carbon"
+
+# Governance constraints that are acceptance criteria, not preferences
+# (§2.4, §2.9 consequence 7).
+governance:
+  data_ai_ethics_council:
+    applies: true
+    expects: [explainability, source_traceability, absence_of_hidden_bias, model_card, decomposable_scores]
+    note: >-
+      An AI system that ranks strategic opportunities is squarely within the
+      remit of the Data and AI Ethics Council. Open question 9 (§4.13) asks
+      whether a review is required before deployment.
+  strategy_technology_committee:
+    applies: true
+    note: "Natural upstream consumer of a curated radar view; quarterly export is a cheap, high-visibility deliverable."

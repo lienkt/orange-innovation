@@ -1,0 +1,650 @@
+# Competitor register (§4.3.3, Table 27 "award concentration among competitors").
+#
+# The same standard as the rest of the business graph (DR-11, NFR-02): every
+# entry is a named entity with a stated source and an as-of date, because a
+# competitor claim that reaches a customer conversation has to be defensible.
+# Nothing here is generated; the model that writes the competitive narrative may
+# only name entities from this file that the evidence actually supports, exactly
+# as the next-action generator may only name Orange assets it was handed.
+#
+# `relationship` is the field that makes this list honest for Orange Business:
+# the same company is frequently a partner in one motion and a competitor in
+# another. Microsoft is a Gold partner and sells the customer a Teams-native
+# contact centre; Cisco is a Global Gold partner and sells managed SD-WAN
+# directly. Recording that as `both` is more useful to a salesperson than
+# pretending either half is not true.
+#
+# `aliases` drive evidence matching against the signal corpus. They are matched
+# on word boundaries and are deliberately conservative: an ambiguous short name
+# (SES, Colt, NICE) produces false positives that would put an invented
+# competitor in front of a customer, so ambiguous entries carry only their
+# unambiguous forms.
+
+version: "competitors-2026-08-a"
+owner: "innovation-radar-curator"
+as_of: "2026-08-18"
+source: >-
+  Public market positioning, analyst coverage cited in config/business_graph/assets.yaml,
+  and vendor category leadership as published by the vendors themselves. This register is a
+  Sprint 0 curation deliverable and is expected to be reviewed by Orange Business
+  competitive intelligence before it is used in front of a customer.
+
+# Weight per competitor type in the intensity score. A hyperscaler or a global
+# integrator entering a space changes its economics more than one more regional
+# reseller does, so the types are not equal.
+types:
+  telco_peer:
+    label: Telecom operator peer
+    weight: 1.0
+    note: Competes for the same managed-service budget with the same operator story.
+  hyperscaler:
+    label: Hyperscaler
+    weight: 1.2
+    note: Sets the reference price and often owns the customer's platform decision.
+  global_si:
+    label: Global systems integrator
+    weight: 1.0
+    note: Competes for the integration and transformation budget above the network.
+  security_specialist:
+    label: Security specialist
+    weight: 0.9
+  network_vendor:
+    label: Network equipment vendor
+    weight: 0.8
+    note: Increasingly sells direct to enterprises rather than only through operators.
+  industrial_specialist:
+    label: Industrial / OT specialist
+    weight: 0.9
+    note: Owns the plant relationship, which is the hardest position to displace.
+  cloud_sovereign:
+    label: Sovereign cloud provider
+    weight: 0.9
+  data_ai_specialist:
+    label: Data and AI platform
+    weight: 0.8
+  cx_specialist:
+    label: Customer-experience platform
+    weight: 0.9
+  satellite_operator:
+    label: Satellite operator
+    weight: 0.8
+  regional_integrator:
+    label: Regional integrator or reseller
+    weight: 0.5
+    note: Numerous and price-driven; raises intensity in aggregate, not individually.
+
+competitors:
+
+  # ---------------- Telecom operator peers ----------------
+  - id: deutsche_telekom_tsystems
+    label: Deutsche Telekom / T-Systems
+    type: telco_peer
+    aliases: ["Deutsche Telekom", "T-Systems", "Telekom Deutschland"]
+    relationship: competitor
+    technologies: [private_5g, network_slicing, sd_wan, sovereign_cloud, iot_platform, edge_computing]
+    domains: [connectivity_solutions, cloud, cybersecurity, ox_smart_industries]
+    verticals: [manufacturing, automotive, public_sector, healthcare]
+    note: The closest structural analogue to Orange Business, with the same operator-plus-integrator claim.
+
+  - id: vodafone_business
+    label: Vodafone Business
+    type: telco_peer
+    aliases: ["Vodafone Business", "Vodafone"]
+    relationship: competitor
+    technologies: [private_5g, network_slicing, lpwan, iot_platform, sd_wan, satellite_ntn]
+    domains: [connectivity_solutions, ox_smart_industries]
+    verticals: [manufacturing, automotive, transport_logistics, retail]
+
+  - id: telefonica_tech
+    label: Telefónica Tech
+    type: telco_peer
+    aliases: ["Telefónica Tech", "Telefonica Tech", "Telefónica", "Telefonica"]
+    relationship: competitor
+    technologies: [sovereign_cloud, siem_soar, iot_platform, private_5g, cloud_data_platform]
+    domains: [cybersecurity, cloud, connectivity_solutions]
+    verticals: [public_sector, retail, energy]
+
+  - id: bt_business
+    label: BT Business
+    type: telco_peer
+    aliases: ["BT Business", "BT Group"]
+    relationship: competitor
+    technologies: [sd_wan, sase, private_5g, siem_soar]
+    domains: [connectivity_solutions, cybersecurity]
+
+  - id: verizon_business
+    label: Verizon Business
+    type: telco_peer
+    aliases: ["Verizon Business", "Verizon"]
+    relationship: competitor
+    technologies: [sd_wan, sase, private_5g, iot_platform]
+    domains: [connectivity_solutions, cybersecurity]
+
+  - id: swisscom
+    label: Swisscom
+    type: telco_peer
+    aliases: ["Swisscom"]
+    relationship: competitor
+    technologies: [sovereign_cloud, private_5g, sd_wan]
+    domains: [cloud, connectivity_solutions]
+
+  - id: proximus
+    label: Proximus
+    type: telco_peer
+    aliases: ["Proximus"]
+    relationship: competitor
+    technologies: [private_5g, iot_platform, sd_wan]
+    domains: [connectivity_solutions]
+
+  - id: telia_company
+    label: Telia Company
+    type: telco_peer
+    aliases: ["Telia Company", "Telia"]
+    relationship: competitor
+    technologies: [private_5g, iot_platform, lpwan]
+    domains: [connectivity_solutions, ox_smart_industries]
+
+  - id: colt_technology
+    label: Colt Technology Services
+    type: telco_peer
+    aliases: ["Colt Technology Services", "Colt Technology"]
+    relationship: competitor
+    technologies: [sd_wan, network_slicing]
+    domains: [connectivity_solutions]
+
+  - id: lumen_technologies
+    label: Lumen Technologies
+    type: telco_peer
+    aliases: ["Lumen Technologies", "Lumen"]
+    relationship: competitor
+    technologies: [sd_wan, sase, edge_computing]
+    domains: [connectivity_solutions, cybersecurity]
+
+  # ---------------- Hyperscalers ----------------
+  - id: microsoft_azure
+    label: Microsoft
+    type: hyperscaler
+    aliases: ["Microsoft", "Azure", "Microsoft Azure"]
+    relationship: both
+    partner_id: microsoft
+    technologies: [cloud_data_platform, generative_ai, agentic_ai, mlops_platform, containers_kubernetes, sovereign_cloud, nlp_speech]
+    domains: [cloud, cx_customer_experience, ex_employee_experience]
+    note: Gold partner and simultaneously the default alternative in most cloud and AI deals.
+
+  - id: aws_cloud
+    label: AWS
+    type: hyperscaler
+    aliases: ["AWS", "Amazon Web Services"]
+    relationship: both
+    partner_id: aws
+    technologies: [cloud_data_platform, containers_kubernetes, machine_learning, mlops_platform, edge_computing, iot_platform]
+    domains: [cloud, ox_smart_industries]
+
+  - id: google_cloud_platform
+    label: Google Cloud
+    type: hyperscaler
+    aliases: ["Google Cloud", "Google Cloud Platform"]
+    relationship: both
+    partner_id: google_cloud
+    technologies: [cloud_data_platform, generative_ai, machine_learning, mlops_platform, sovereign_cloud]
+    domains: [cloud, cx_customer_experience]
+
+  # ---------------- Global systems integrators ----------------
+  - id: accenture
+    label: Accenture
+    type: global_si
+    aliases: ["Accenture"]
+    relationship: competitor
+    technologies: [generative_ai, agentic_ai, cloud_data_platform, digital_twin, process_mining]
+    domains: [cloud, ox_smart_industries, cx_customer_experience]
+    verticals: [financial_services, manufacturing, retail, public_sector]
+
+  - id: capgemini
+    label: Capgemini
+    type: global_si
+    aliases: ["Capgemini", "Sogeti", "Odigo"]
+    relationship: competitor
+    technologies: [generative_ai, cloud_data_platform, digital_twin, nlp_speech, agentic_ai]
+    domains: [cloud, cx_customer_experience, ox_smart_industries]
+    verticals: [public_sector, manufacturing, energy, financial_services]
+    note: Also owns Odigo, a direct competitor to Orange's contact-centre motion.
+
+  - id: atos_eviden
+    label: Atos / Eviden
+    type: global_si
+    aliases: ["Atos", "Eviden", "Bull"]
+    relationship: competitor
+    technologies: [sovereign_cloud, siem_soar, post_quantum_cryptography, confidential_computing, machine_learning]
+    domains: [cybersecurity, cloud]
+    verticals: [public_sector, defense, aerospace_defense, healthcare]
+
+  - id: sopra_steria
+    label: Sopra Steria
+    type: global_si
+    aliases: ["Sopra Steria"]
+    relationship: competitor
+    technologies: [sovereign_cloud, cloud_data_platform, api_integration_platform]
+    domains: [cloud, cybersecurity]
+    verticals: [public_sector, financial_services, aerospace_defense]
+
+  - id: ibm_consulting
+    label: IBM
+    type: global_si
+    aliases: ["IBM", "Red Hat"]
+    relationship: competitor
+    technologies: [containers_kubernetes, generative_ai, knowledge_graph, confidential_computing, post_quantum_cryptography]
+    domains: [cloud, cybersecurity]
+    verticals: [financial_services, public_sector]
+
+  - id: ntt_data
+    label: NTT DATA
+    type: global_si
+    aliases: ["NTT DATA", "NTT Ltd"]
+    relationship: competitor
+    technologies: [private_5g, edge_computing, sd_wan, iot_platform]
+    domains: [connectivity_solutions, ox_smart_industries, cloud]
+
+  - id: dxc_technology
+    label: DXC Technology
+    type: global_si
+    aliases: ["DXC Technology"]
+    relationship: competitor
+    technologies: [cloud_data_platform, containers_kubernetes, observability_aiops]
+    domains: [cloud]
+
+  - id: tcs
+    label: Tata Consultancy Services
+    type: global_si
+    aliases: ["Tata Consultancy Services", "TCS"]
+    relationship: competitor
+    technologies: [generative_ai, cloud_data_platform, process_mining]
+    domains: [cloud, cx_customer_experience]
+
+  - id: infosys
+    label: Infosys
+    type: global_si
+    aliases: ["Infosys"]
+    relationship: competitor
+    technologies: [generative_ai, agentic_ai, cloud_data_platform]
+    domains: [cloud, cx_customer_experience]
+
+  # ---------------- Security specialists ----------------
+  - id: thales_cyber
+    label: Thales
+    type: security_specialist
+    aliases: ["Thales"]
+    relationship: competitor
+    technologies: [post_quantum_cryptography, quantum_key_distribution, sovereign_cloud, confidential_computing, drones_uav]
+    domains: [cybersecurity, cloud]
+    verticals: [defense, aerospace_defense, public_sector, financial_services]
+    note: Both a sovereign-cloud competitor (S3NS with Google) and a defence-grade security incumbent.
+
+  - id: palo_alto_networks_comp
+    label: Palo Alto Networks
+    type: security_specialist
+    aliases: ["Palo Alto Networks"]
+    relationship: both
+    partner_id: palo_alto_networks
+    technologies: [sase, zero_trust_architecture, siem_soar]
+    domains: [cybersecurity]
+
+  - id: fortinet_comp
+    label: Fortinet
+    type: security_specialist
+    aliases: ["Fortinet"]
+    relationship: both
+    partner_id: fortinet
+    technologies: [sase, zero_trust_architecture, sd_wan]
+    domains: [cybersecurity, connectivity_solutions]
+
+  - id: crowdstrike
+    label: CrowdStrike
+    type: security_specialist
+    aliases: ["CrowdStrike"]
+    relationship: competitor
+    technologies: [siem_soar, zero_trust_architecture, observability_aiops]
+    domains: [cybersecurity]
+
+  - id: zscaler_comp
+    label: Zscaler
+    type: security_specialist
+    aliases: ["Zscaler"]
+    relationship: both
+    partner_id: zscaler
+    technologies: [sase, zero_trust_architecture]
+    domains: [cybersecurity]
+
+  - id: airbus_protect
+    label: Airbus Protect
+    type: security_specialist
+    aliases: ["Airbus Protect", "Airbus Defence and Space", "Airbus CyberSecurity"]
+    relationship: competitor
+    technologies: [siem_soar, post_quantum_cryptography, satellite_ntn, drones_uav]
+    domains: [cybersecurity]
+    verticals: [aerospace_defense, defense, public_sector]
+
+  - id: nomios
+    label: Nomios
+    type: regional_integrator
+    aliases: ["Nomios"]
+    relationship: competitor
+    technologies: [sase, zero_trust_architecture, siem_soar, sd_wan]
+    domains: [cybersecurity, connectivity_solutions]
+
+  - id: id_quantique
+    label: ID Quantique
+    type: security_specialist
+    aliases: ["ID Quantique", "IDQuantique"]
+    relationship: competitor
+    technologies: [quantum_key_distribution, post_quantum_cryptography]
+    domains: [cybersecurity]
+
+  - id: entrust
+    label: Entrust
+    type: security_specialist
+    aliases: ["Entrust"]
+    relationship: competitor
+    technologies: [post_quantum_cryptography, confidential_computing]
+    domains: [cybersecurity]
+
+  # ---------------- Network equipment vendors ----------------
+  - id: nokia
+    label: Nokia
+    type: network_vendor
+    aliases: ["Nokia"]
+    relationship: competitor
+    technologies: [private_5g, 5g_ran_oran, network_slicing, edge_computing, wifi6e_7]
+    domains: [connectivity_solutions, ox_smart_industries]
+    verticals: [manufacturing, energy, transport_logistics, natural_resources]
+    note: Sells private wireless direct to industrial enterprises, bypassing the operator entirely.
+
+  - id: ericsson
+    label: Ericsson
+    type: network_vendor
+    aliases: ["Ericsson"]
+    relationship: competitor
+    technologies: [private_5g, 5g_ran_oran, network_slicing, iot_platform]
+    domains: [connectivity_solutions, ox_smart_industries]
+
+  - id: cisco_comp
+    label: Cisco
+    type: network_vendor
+    aliases: ["Cisco"]
+    relationship: both
+    partner_id: cisco
+    technologies: [sd_wan, sase, wifi6e_7, observability_aiops, zero_trust_architecture]
+    domains: [connectivity_solutions, cybersecurity]
+
+  - id: huawei_comp
+    label: Huawei
+    type: network_vendor
+    aliases: ["Huawei"]
+    relationship: both
+    partner_id: huawei
+    technologies: [5g_ran_oran, private_5g, network_slicing]
+    domains: [connectivity_solutions]
+
+  - id: hpe_aruba
+    label: HPE (Aruba, Athonet)
+    type: network_vendor
+    aliases: ["HPE Aruba", "Aruba Networks", "Athonet", "Hewlett Packard Enterprise"]
+    relationship: both
+    partner_id: hpe
+    technologies: [wifi6e_7, private_5g, edge_computing]
+    domains: [connectivity_solutions]
+
+  - id: boldyn_networks
+    label: Boldyn Networks
+    type: network_vendor
+    aliases: ["Boldyn Networks", "Boldyn"]
+    relationship: competitor
+    technologies: [private_5g, network_slicing]
+    domains: [connectivity_solutions]
+    verticals: [transport_logistics, healthcare, public_sector]
+
+  # ---------------- Sovereign cloud ----------------
+  - id: ovhcloud
+    label: OVHcloud
+    type: cloud_sovereign
+    aliases: ["OVHcloud", "OVH"]
+    relationship: competitor
+    technologies: [sovereign_cloud, containers_kubernetes, cloud_data_platform]
+    domains: [cloud]
+    verticals: [public_sector, healthcare, financial_services]
+
+  - id: scaleway
+    label: Scaleway
+    type: cloud_sovereign
+    aliases: ["Scaleway"]
+    relationship: competitor
+    technologies: [sovereign_cloud, containers_kubernetes, mlops_platform]
+    domains: [cloud]
+
+  - id: ionos
+    label: IONOS
+    type: cloud_sovereign
+    aliases: ["IONOS"]
+    relationship: competitor
+    technologies: [sovereign_cloud, cloud_data_platform]
+    domains: [cloud]
+
+  - id: outscale
+    label: Dassault Systèmes / 3DS Outscale
+    type: cloud_sovereign
+    aliases: ["Outscale", "3DS Outscale", "Dassault Systèmes"]
+    relationship: competitor
+    technologies: [sovereign_cloud, digital_twin]
+    domains: [cloud, ox_smart_industries]
+    verticals: [aerospace_defense, manufacturing, defense]
+
+  # ---------------- Industrial and OT specialists ----------------
+  - id: siemens
+    label: Siemens
+    type: industrial_specialist
+    aliases: ["Siemens"]
+    relationship: competitor
+    technologies: [digital_twin, iot_platform, low_power_sensors, robotics_agv, private_5g]
+    domains: [ox_smart_industries]
+    verticals: [manufacturing, automotive, energy, construction, natural_resources]
+    note: Owns the plant-floor relationship and the automation stack the topic has to attach to.
+
+  - id: schneider_electric
+    label: Schneider Electric
+    type: industrial_specialist
+    aliases: ["Schneider Electric"]
+    relationship: competitor
+    technologies: [iot_platform, low_power_sensors, digital_twin, edge_computing]
+    domains: [ox_smart_industries]
+    verticals: [energy, construction, manufacturing]
+
+  - id: bosch
+    label: Bosch
+    type: industrial_specialist
+    aliases: ["Bosch"]
+    relationship: competitor
+    technologies: [iot_platform, computer_vision, low_power_sensors, tinyml_embedded_ai]
+    domains: [ox_smart_industries]
+    verticals: [manufacturing, automotive]
+
+  - id: honeywell
+    label: Honeywell
+    type: industrial_specialist
+    aliases: ["Honeywell"]
+    relationship: competitor
+    technologies: [iot_platform, low_power_sensors, wearables, computer_vision]
+    domains: [ox_smart_industries]
+    verticals: [manufacturing, natural_resources, energy, transport_logistics]
+
+  - id: ptc_thingworx
+    label: PTC (ThingWorx)
+    type: industrial_specialist
+    aliases: ["ThingWorx", "PTC Inc"]
+    relationship: competitor
+    technologies: [iot_platform, digital_twin, ar_vr_xr]
+    domains: [ox_smart_industries]
+
+  - id: actility
+    label: Actility
+    type: industrial_specialist
+    aliases: ["Actility"]
+    relationship: competitor
+    technologies: [lpwan, iot_platform]
+    domains: [ox_smart_industries, connectivity_solutions]
+
+  # ---------------- Data and AI platforms ----------------
+  - id: palantir
+    label: Palantir
+    type: data_ai_specialist
+    aliases: ["Palantir"]
+    relationship: competitor
+    technologies: [cloud_data_platform, knowledge_graph, machine_learning, agentic_ai]
+    domains: [cloud, ox_smart_industries]
+    verticals: [defense, aerospace_defense, public_sector, healthcare]
+
+  - id: databricks
+    label: Databricks
+    type: data_ai_specialist
+    aliases: ["Databricks"]
+    relationship: competitor
+    technologies: [cloud_data_platform, mlops_platform, machine_learning, rag_vector_search]
+    domains: [cloud]
+
+  - id: snowflake
+    label: Snowflake
+    type: data_ai_specialist
+    aliases: ["Snowflake"]
+    relationship: competitor
+    technologies: [cloud_data_platform, rag_vector_search]
+    domains: [cloud]
+
+  - id: dataiku
+    label: Dataiku
+    type: data_ai_specialist
+    aliases: ["Dataiku"]
+    relationship: competitor
+    technologies: [mlops_platform, machine_learning, generative_ai]
+    domains: [cloud]
+
+  - id: mistral_ai
+    label: Mistral AI
+    type: data_ai_specialist
+    aliases: ["Mistral AI"]
+    relationship: competitor
+    technologies: [generative_ai, agentic_ai, rag_vector_search]
+    domains: [cloud, cx_customer_experience]
+    note: The sovereign-AI alternative a European buyer will ask about by name.
+
+  # ---------------- Customer experience ----------------
+  - id: salesforce
+    label: Salesforce
+    type: cx_specialist
+    aliases: ["Salesforce"]
+    relationship: competitor
+    technologies: [agentic_ai, generative_ai, api_integration_platform]
+    domains: [cx_customer_experience]
+
+  - id: genesys_comp
+    label: Genesys
+    type: cx_specialist
+    aliases: ["Genesys"]
+    relationship: both
+    partner_id: genesys
+    technologies: [nlp_speech, agentic_ai]
+    domains: [cx_customer_experience]
+
+  - id: nice_comp
+    label: NiCE
+    type: cx_specialist
+    aliases: ["NICE Ltd", "NiCE inContact", "NICE CXone"]
+    relationship: both
+    partner_id: nice
+    technologies: [nlp_speech, machine_learning, agentic_ai]
+    domains: [cx_customer_experience]
+
+  # ---------------- Satellite ----------------
+  - id: starlink
+    label: SpaceX Starlink
+    type: satellite_operator
+    aliases: ["Starlink", "SpaceX"]
+    relationship: competitor
+    technologies: [satellite_ntn]
+    domains: [connectivity_solutions]
+    verticals: [transport_logistics, natural_resources, energy]
+
+  - id: eutelsat_oneweb
+    label: Eutelsat OneWeb
+    type: satellite_operator
+    aliases: ["Eutelsat OneWeb", "OneWeb", "Eutelsat"]
+    relationship: competitor
+    technologies: [satellite_ntn]
+    domains: [connectivity_solutions]
+
+  - id: marlink
+    label: Marlink
+    type: satellite_operator
+    aliases: ["Marlink"]
+    relationship: competitor
+    technologies: [satellite_ntn, sd_wan]
+    domains: [connectivity_solutions]
+    verticals: [transport_logistics, natural_resources]
+
+  # ---------------- Counter-drone and physical security ----------------
+  - id: dedrone_axon
+    label: Dedrone by Axon
+    type: security_specialist
+    aliases: ["Dedrone", "Axon"]
+    relationship: competitor
+    technologies: [drones_uav, computer_vision]
+    domains: [cybersecurity, ox_smart_industries]
+    verticals: [aerospace_defense, defense, public_sector, transport_logistics]
+
+  - id: hensoldt
+    label: HENSOLDT
+    type: security_specialist
+    aliases: ["HENSOLDT"]
+    relationship: competitor
+    technologies: [drones_uav, computer_vision]
+    domains: [cybersecurity]
+    verticals: [defense, aerospace_defense]
+
+  - id: leonardo
+    label: Leonardo
+    type: security_specialist
+    aliases: ["Leonardo S.p.A", "Leonardo SpA"]
+    relationship: competitor
+    technologies: [drones_uav, siem_soar, satellite_ntn]
+    domains: [cybersecurity]
+    verticals: [defense, aerospace_defense, public_sector]
+
+  # ---------------- Regional integrators ----------------
+  - id: computacenter
+    label: Computacenter
+    type: regional_integrator
+    aliases: ["Computacenter"]
+    relationship: competitor
+    technologies: [sd_wan, containers_kubernetes, zero_trust_architecture]
+    domains: [connectivity_solutions, cloud, ex_employee_experience]
+
+  - id: bechtle
+    label: Bechtle
+    type: regional_integrator
+    aliases: ["Bechtle"]
+    relationship: competitor
+    technologies: [sovereign_cloud, containers_kubernetes, zero_trust_architecture]
+    domains: [cloud, ex_employee_experience]
+
+  - id: econocom
+    label: Econocom
+    type: regional_integrator
+    aliases: ["Econocom"]
+    relationship: competitor
+    technologies: [ar_vr_xr, wifi6e_7, api_integration_platform]
+    domains: [ex_employee_experience, connectivity_solutions]
+
+  - id: spie_ics
+    label: SPIE ICS
+    type: regional_integrator
+    aliases: ["SPIE ICS"]
+    relationship: competitor
+    technologies: [sd_wan, wifi6e_7, zero_trust_architecture]
+    domains: [connectivity_solutions, cybersecurity]

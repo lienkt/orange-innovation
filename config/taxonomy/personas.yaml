@@ -1,0 +1,59 @@
+# Target customer personas — fixed by the briefing deck (Table 7).
+# These are the personas of the CUSTOMER (who Orange sells to), not the three
+# radar user roles (which live in config/role_modes.yaml).
+version: "2026-08-a"
+owner: "taxonomy-curator"
+items:
+  - id: cio
+    label: CIO
+    definition: Chief Information Officer; owns the enterprise IT agenda and budget.
+    cares_about: [cost, consolidation, modernisation, vendor risk, time-to-value]
+    typical_domains: [cloud, connectivity_solutions, ex_employee_experience]
+
+  - id: it_network_exec
+    label: IT and network executives
+    definition: Heads of infrastructure, networks and operations below or beside the CIO.
+    cares_about: [availability, performance, coverage, migration risk, operating cost]
+    typical_domains: [connectivity_solutions, cloud]
+
+  - id: security_exec
+    label: Security executives
+    definition: Security leadership outside the CISO title — risk, resilience, business continuity.
+    cares_about: [resilience, regulatory exposure, incident readiness]
+    typical_domains: [cybersecurity]
+
+  - id: ciso
+    label: CISO
+    definition: Chief Information Security Officer; owns the security posture and its evidence.
+    cares_about: [threat detection, compliance deadlines, OT/IT convergence, audit evidence]
+    typical_domains: [cybersecurity]
+
+  - id: cdo
+    label: CDO
+    definition: Chief Data / Digital Officer; owns data platforms, AI adoption and governance.
+    cares_about: [data quality, AI governance, sovereignty, use-case ROI]
+    typical_domains: [cloud, cx_customer_experience]
+
+  - id: coo_production
+    label: COO and production executives
+    definition: Operations and production leadership; owns industrial output and cost per unit.
+    cares_about: [OEE, downtime, yield, energy cost, worker safety]
+    typical_domains: [ox_smart_industries]
+
+  - id: cmo_cx_exec
+    label: CMO and CX executives
+    definition: Marketing and customer-experience leadership; owns the customer relationship.
+    cares_about: [conversion, NPS, cost to serve, deflection rate, personalisation]
+    typical_domains: [cx_customer_experience]
+
+  - id: industrial_safety_manager
+    label: Industrial safety managers
+    definition: Owns HSE compliance and incident rates on industrial sites.
+    cares_about: [incident rate, compliance evidence, worker protection, insurance cost]
+    typical_domains: [ox_smart_industries]
+
+  - id: quality_manager
+    label: Quality managers
+    definition: Owns product and process quality, traceability and certification.
+    cares_about: [defect rate, traceability, audit readiness, recall exposure]
+    typical_domains: [ox_smart_industries]

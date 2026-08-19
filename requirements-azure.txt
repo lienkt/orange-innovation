@@ -1,0 +1,26 @@
+# Runtime dependencies for the App Service deployment — the READ path only.
+#
+# The pipeline's heavy dependencies are deliberately absent. `radar.api` imports
+# none of them: sentence-transformers, scikit-learn and the OpenAI client are all
+# imported inside the functions that need them (see embeddings.py and llm.py), so
+# a serving instance never loads torch. That is the difference between a 150 MB
+# deployment and a 2.5 GB one, and on the Free tier it is the difference between
+# starting and not.
+#
+# Discovery (collect, classify, themes, synthesise) is not run in Azure: it is a
+# scheduled batch job against the same SQLite file, run locally or from CI, and
+# the deployed app serves what it produced.
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+gunicorn>=21.2
+pydantic>=2.6
+pyyaml>=6.0
+python-dotenv>=1.0
+requests>=2.31
+numpy>=1.26
+reportlab>=4.0
+
+# Only used when a description or brief is generated on demand from the UI.
+# OpenAI-compatible client; the provider is whatever RADAR_LLM_PROVIDER names.
+openai>=1.40

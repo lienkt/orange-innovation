@@ -1,0 +1,21 @@
+# Core
+requests>=2.31
+pyyaml>=6.0
+python-dotenv>=1.0
+pydantic>=2.6
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+
+# LLM (OpenAI-compatible client; used for DeepSeek, OpenAI, Ollama alike)
+openai>=1.40
+
+# Embeddings — local by default, keeps the sovereign deployment option open (NFR-05)
+sentence-transformers>=2.7
+
+# UI
+streamlit>=1.33
+plotly>=5.20
+
+# Dev
+pytest>=8.0

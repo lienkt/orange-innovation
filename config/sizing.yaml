@@ -1,0 +1,266 @@
+# Market sizing (§4.3.4, Table 19).
+#
+# §4.3.4 is unusually specific about how NOT to do this: "the headline
+# market-size figures circulating in press coverage almost always originate from
+# paid research houses, are quoted without methodology, and frequently conflict
+# by an order of magnitude. The radar should prefer a transparent bottom-up
+# estimate — enterprise count in the vertical x adoption rate x plausible
+# contract value — and show its working, rather than repeating an
+# unattributable billion-euro number."
+#
+# So this file configures a computation, not a lookup table of answers. Every
+# factor below is either fetched from a named public dataset (Eurostat, TED) or
+# declared here as an ASSUMPTION with an owner and a rationale. No number in the
+# sizing path is ever produced by a language model (§4.4.4 defence 3).
+#
+# Changing anything in this file requires a new `version` id, for the same
+# reason `weight_set` exists: sizes computed under different assumptions are not
+# comparable, and every stored size records the version that produced it.
+
+version: "size-2026-08-a"
+owner: "innovation-radar-curator"
+
+# ---------------------------------------------------------------------------
+# Scope of the denominator
+# ---------------------------------------------------------------------------
+scope:
+  # Eurostat's enterprise ICT survey is published only for enterprises with 10
+  # or more persons employed. The enterprise denominator is therefore
+  # restricted to the same size classes: multiplying a "GE10" adoption rate by
+  # an all-sizes enterprise count (which is ~90% micro-enterprises) would
+  # inflate every estimate by roughly an order of magnitude.
+  size_classes: ["10-19", "20-49", "50-249", "GE250"]
+
+  # Size classes counted as serviceable for SAM. Orange Business sells managed
+  # services into mid-market and large accounts; a 12-person enterprise is in
+  # the total market but not in Orange's serviceable one.
+  serviceable_size_classes: ["50-249", "GE250"]
+
+  # Eurostat's EU aggregate, used when a topic's geography is "EU" or when it
+  # names no geography at all.
+  eu_aggregate: "EU27_2020"
+
+  # Geographies fetched into the reference store. The EU aggregate plus the
+  # member states, so a topic that names FR and DE is sized on those two rather
+  # than on the whole union.
+  fetch_geographies:
+    - EU27_2020
+    - AT
+    - BE
+    - BG
+    - HR
+    - CY
+    - CZ
+    - DK
+    - EE
+    - FI
+    - FR
+    - DE
+    - GR
+    - HU
+    - IE
+    - IT
+    - LV
+    - LT
+    - LU
+    - MT
+    - NL
+    - PL
+    - PT
+    - RO
+    - SK
+    - SI
+    - ES
+    - SE
+    - "NO"
+    - CH
+
+  # A topic naming geographies outside this list is sized on the covered subset
+  # and reports the shortfall (NFR-08: coverage is measured, not assumed).
+  fallback_geography: EU27_2020
+
+# ---------------------------------------------------------------------------
+# Reference datasets. Each entry is a real, free, attributable series; the
+# connector fetches it into `reference_observations` with its own `updated`
+# stamp, so every factor in a size can name the dataset and the year it came
+# from (NFR-02).
+# ---------------------------------------------------------------------------
+reference_datasets:
+  sbs:
+    dataset: sbs_sc_ovw
+    publisher: "Eurostat"
+    label: "Structural business statistics by size class and NACE Rev. 2 activity"
+    url: "https://ec.europa.eu/eurostat/databrowser/view/sbs_sc_ovw"
+    licence: "Eurostat reuse policy — open with attribution"
+    indicators:
+      enterprises: ENT_NR
+      turnover_meur: NETTUR_MEUR
+  ict_cloud:
+    dataset: isoc_cicce_usen2
+    publisher: "Eurostat"
+    label: "Cloud computing services by NACE Rev. 2 activity"
+    url: "https://ec.europa.eu/eurostat/databrowser/view/isoc_cicce_usen2"
+    licence: "Eurostat reuse policy — open with attribution"
+    unit: PC_ENT
+  ict_ai:
+    dataset: isoc_eb_ain2
+    publisher: "Eurostat"
+    label: "Artificial intelligence by NACE Rev. 2 activity"
+    url: "https://ec.europa.eu/eurostat/databrowser/view/isoc_eb_ain2"
+    licence: "Eurostat reuse policy — open with attribution"
+    unit: PC_ENT
+  ict_iot:
+    dataset: isoc_eb_iotn2
+    publisher: "Eurostat"
+    label: "Internet of Things by NACE Rev. 2 activity"
+    url: "https://ec.europa.eu/eurostat/databrowser/view/isoc_eb_iotn2"
+    licence: "Eurostat reuse policy — open with attribution"
+    unit: PC_ENT
+  ict_security:
+    dataset: isoc_cisce_ran2
+    publisher: "Eurostat"
+    label: "ICT security measures by NACE Rev. 2 activity"
+    url: "https://ec.europa.eu/eurostat/databrowser/view/isoc_cisce_ran2"
+    licence: "Eurostat reuse policy — open with attribution"
+    unit: PC_ENT
+
+# Indicators fetched per adoption dataset. The crosswalk
+# (crosswalks/technology_to_adoption.csv) picks one per technology; everything
+# listed here is fetched so a crosswalk change needs no re-fetch.
+adoption_indicators:
+  ict_cloud: [E_CC, E_CC_PDB, E_CC_PCPU, E_CC_PDEV, E_CC_PSEC, E_CC_PERP, E_CC_PCRM]
+  ict_ai: [E_AI_TANY, E_AI_TML, E_AI_TNLG, E_AI_TPA, E_AI_TTM, E_AI_TIR, E_AI_TSR, E_AI_TAR]
+  ict_iot: [E_IOT1, E_IOTDPP, E_IOTDLOG, E_IOTDMTN1, E_IOTDSEC, E_IOTDEC1]
+  ict_security: [E_SECMANY, E_SECMNAC, E_SECMSMS, E_SECMDENC, E_SECMVPN, E_SECMRASS, E_SECMTST]
+
+# ---------------------------------------------------------------------------
+# Contract value — the third factor of "enterprise count x adoption x contract
+# value". This is the factor §4.3.4 leaves as "plausible", and the only
+# attributable evidence available for it is TED: real contracts, with real
+# values, already in the signal store.
+# ---------------------------------------------------------------------------
+contract_value:
+  # Matching is via the existing CPV crosswalks: a notice counts toward a topic
+  # when its CPV codes resolve to the topic's vertical or use case.
+  min_notices: 6
+  # ... AND when at least one of its CPV codes is an ICT engagement. The
+  # crosswalk answers "is this notice about this use case"; it does not answer
+  # "is this the kind of contract Orange would bid for". Without this filter a
+  # 188m EUR hydroelectric turbine retrofit, correctly crosswalked to industrial
+  # asset management, sets the price of a zero-trust deployment.
+  # Tested against the notice's MAIN OBJECT (its first CPV code), not against
+  # any of its lots — a turbine contract carries an IT code for its SCADA lot,
+  # and matching on "any code" lets its whole value through.
+  #   30 office and computing machinery   32 communication equipment
+  #   48 software and information systems 51 installation of computers
+  #   64 postal and telecommunications    72 IT services
+  eligible_cpv_prefixes: ["30", "32", "48", "51", "64", "72"]
+  # The observed contract value comes from PUBLIC tenders, which are
+  # large-organisation contracts. Applied flat, it would price a twelve-person
+  # manufacturer's deployment at a ministry's budget, and every TAM in the
+  # radar would be out by roughly an order of magnitude. Engagement value is
+  # therefore scaled per size class, anchored at 1.0 on the 250+ class the
+  # observed contracts actually represent.
+  #
+  # ASSUMPTION, owned: the weights are the classes' employee midpoints over a
+  # 400-employee anchor. Scaling by Eurostat turnover instead was rejected —
+  # turnover per enterprise differs by a factor of several hundred between the
+  # smallest and largest classes, which would price a small manufacturer's
+  # project in the hundreds of euro.
+  size_class_value_weights:
+    "10-19": 0.04
+    "20-49": 0.09
+    "50-249": 0.35
+    "GE250": 1.00
+  # Sanity bounds on the resulting ANNUAL per-enterprise engagement value. A
+  # framework agreement covering a whole ministry is a real contract, but it is
+  # not what one enterprise spends in one year, and the quantiles alone do not
+  # always exclude it. Clamping is recorded in the factor's detail rather than
+  # applied silently.
+  annual_value_bounds_eur: {min: 25000, max: 3000000}
+  # TED publishes framework agreements for whole ministries alongside single
+  # site deployments, so the distribution is heavy-tailed at both ends and the
+  # extremes are trimmed before the quantiles are taken.
+  trim_quantiles: [0.10, 0.90]
+  # TED emits 0.01 as a "value not disclosed" placeholder, and a handful of
+  # notices carry values in the hundreds of billions (currency or unit errors
+  # at source). Both are excluded rather than winsorised — they are not small
+  # or large contracts, they are bad rows.
+  min_value_eur: 25000
+  max_value_eur: 250000000
+  # `total-value` on a TED notice is the value of the WHOLE contract, typically
+  # multi-year. Sizing is annual, so it is divided by an assumed duration.
+  # ASSUMPTION, owned: EU public ICT framework contracts commonly run four
+  # years. Publishing the divisor is the point — a reader who disagrees can
+  # re-derive the size with their own number.
+  assumed_contract_years: 4
+  # Public tender values are a proxy for private-sector deal size. The proxy is
+  # declared rather than hidden, and it widens the range rather than shifting
+  # the base.
+  private_sector_proxy_note: >-
+    Contract values are observed from EU public procurement (TED). For
+    private-sector verticals they are used as a proxy for comparable enterprise
+    deal size: the buying entity differs, the scope of work is comparable.
+  # Used only when fewer than `min_notices` matching notices exist. ASSUMPTIONS,
+  # per business domain, owned by the curator named above. Annual value of one
+  # enterprise engagement, in EUR.
+  fallback_bands_eur:
+    ox_smart_industries: {low: 120000, base: 320000, high: 900000}
+    connectivity_solutions: {low: 60000, base: 180000, high: 550000}
+    cybersecurity: {low: 80000, base: 240000, high: 750000}
+    cloud: {low: 90000, base: 260000, high: 800000}
+    cx_customer_experience: {low: 70000, base: 200000, high: 600000}
+    ex_employee_experience: {low: 50000, base: 150000, high: 450000}
+  fallback_default_eur: {low: 60000, base: 200000, high: 600000}
+
+# ---------------------------------------------------------------------------
+# Uncertainty. Sizes are published as a range, because a point estimate implies
+# a precision none of these factors has. The range is compounded from the
+# per-factor bands below; `basis` on each factor says which one applied.
+# ---------------------------------------------------------------------------
+uncertainty:
+  # Relative band on an adoption rate taken directly from the mapped indicator.
+  adoption_observed: 0.15
+  # Wider band when the adoption rate is a declared proxy — a different
+  # indicator or a different sector aggregate than the topic strictly needs.
+  adoption_proxy: 0.40
+  # Band on the enterprise count. Eurostat SBS is a census-grade series; the
+  # uncertainty here is the crosswalk (§4.5.2), not the statistic.
+  enterprises: 0.10
+
+# ---------------------------------------------------------------------------
+# Serviceable and obtainable shares.
+#
+# SAM is COMPUTED, not assumed: it is the same bottom-up estimate restricted to
+# the serviceable size classes and to geographies inside the scope list.
+#
+# SOM is the one genuinely modelled number in this file. It is a planning
+# assumption anchored on the topic's own right-to-win score and portfolio
+# distance, it is labelled as such everywhere it is displayed, and it never
+# feeds a published score.
+# ---------------------------------------------------------------------------
+obtainable_share:
+  note: >-
+    A planning assumption, not evidence. Anchored on right to win (can Orange
+    win this at all) and portfolio distance (how much has to be built first).
+    Shown so a plan can be made; never treated as a forecast.
+  by_right_to_win:
+    - {min_score: 70, share: 0.060, label: "strong assets, credible incumbent"}
+    - {min_score: 55, share: 0.035, label: "assets exist, competitive fight"}
+    - {min_score: 40, share: 0.015, label: "partial assets, challenger"}
+    - {min_score: 0,  share: 0.005, label: "thin assets, opportunistic only"}
+  by_portfolio_distance:
+    L0: 1.00
+    L1: 0.80
+    L2: 0.50
+    L3: 0.25
+    L4: 0.10
+
+# ---------------------------------------------------------------------------
+# How the confidence grade is decided. A size is only as good as its weakest
+# factor, so the grade is the worst case across the three, not an average.
+# ---------------------------------------------------------------------------
+confidence:
+  observed_note: "Every factor from a dated public dataset; the crosswalk is the only judgement."
+  partial_note: "One factor is a declared proxy or a configured assumption."
+  modelled_note: "Two or more factors are assumptions. Treat the order of magnitude, not the number."

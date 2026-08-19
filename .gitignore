@@ -1,0 +1,33 @@
+# Secrets — never commit
+.env
+*.key
+
+# Data & artefacts
+data/
+!data/.gitkeep
+*.db
+*.sqlite3
+*.duckdb
+archive/
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Models / embeddings cache
+.models/
+.sentence_transformers/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

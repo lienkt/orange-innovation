@@ -1,0 +1,75 @@
+# Crosswalk: CPV -> radar use case (LK-02, DR-12).
+# The horizontal CPV codes (72 IT, 48 software, 64 telecom, 32 comms equipment)
+# carry no vertical signal but they do carry a strong USE-CASE signal, which is
+# what makes a tender a buying signal for a specific opportunity space rather
+# than generic IT spend.
+#
+# Matching is by CPV prefix, longest prefix wins. Many-to-many: one CPV may
+# indicate several use cases, each with its own confidence.
+version,cpv_prefix,use_case,confidence,owner,note
+2026-08-a,72212730,identity_access_management,0.90,taxonomy-curator,Security software development services
+2026-08-a,7251,it_operations_automation,0.70,taxonomy-curator,Computer-related management services
+2026-08-a,72514,it_operations_automation,0.80,taxonomy-curator,Computer facilities management services
+2026-08-a,72222300,data_sovereignty_protection,0.60,taxonomy-curator,Information technology services - hosting
+2026-08-a,72222300,sovereign_ai_enclave,0.35,taxonomy-curator,Hosting - AI enclave subset
+2026-08-a,72322,data_platform_modernization,0.85,taxonomy-curator,Data management services
+2026-08-a,72316,demand_forecasting,0.45,taxonomy-curator,Data analysis services
+2026-08-a,72316,customer_journey_analytics,0.30,taxonomy-curator,Data analysis services
+2026-08-a,72316,yield_optimization,0.25,taxonomy-curator,Data analysis services
+2026-08-a,72312,document_intelligence,0.70,taxonomy-curator,Data entry services
+2026-08-a,7222,legacy_application_migration,0.65,taxonomy-curator,Systems and technical consultancy
+2026-08-a,72220,legacy_application_migration,0.75,taxonomy-curator,Systems and technical consultancy services
+2026-08-a,72315,network_automation,0.75,taxonomy-curator,Data network management and support services
+2026-08-a,72315200,network_as_sensor_analytics,0.55,taxonomy-curator,Data network management
+2026-08-a,72400,site_connectivity_resilience,0.70,taxonomy-curator,Internet services
+2026-08-a,72413,customer_self_service,0.60,taxonomy-curator,World wide web site design services
+2026-08-a,72512,citizen_service_automation,0.55,taxonomy-curator,Document management services
+2026-08-a,72500,threat_detection_response,0.40,taxonomy-curator,Computer-related services - security subset
+2026-08-a,7226,it_operations_automation,0.55,taxonomy-curator,Software-related services
+2026-08-a,79710,threat_detection_response,0.85,taxonomy-curator,Security services
+2026-08-a,79711,critical_infrastructure_monitoring,0.70,taxonomy-curator,Alarm-monitoring services
+2026-08-a,79714,critical_infrastructure_monitoring,0.65,taxonomy-curator,Surveillance services
+2026-08-a,79418,supply_chain_risk_monitoring,0.60,taxonomy-curator,Procurement consultancy services
+2026-08-a,79212,regulatory_compliance_reporting,0.75,taxonomy-curator,Auditing services
+2026-08-a,79132,product_traceability,0.50,taxonomy-curator,Certification services
+2026-08-a,79132,onboarding_kyc,0.35,taxonomy-curator,Certification services - identity subset
+2026-08-a,79512,contact_center_automation,0.90,taxonomy-curator,Call centre
+2026-08-a,79940,claims_processing,0.55,taxonomy-curator,Collection agency services
+2026-08-a,3241,site_connectivity_resilience,0.60,taxonomy-curator,Line telephony and data transmission equipment
+2026-08-a,32412,site_connectivity_resilience,0.75,taxonomy-curator,Network equipment
+2026-08-a,324121,private_network_deployment,0.55,taxonomy-curator,Local area network equipment
+2026-08-a,3250,private_network_deployment,0.60,taxonomy-curator,Telephone and transmission equipment
+2026-08-a,32562,indoor_coverage,0.80,taxonomy-curator,Optical fibre cables and in-building distribution
+2026-08-a,32534,satellite_backup_connectivity,0.85,taxonomy-curator,Satellite platforms
+2026-08-a,32550,workplace_collaboration,0.75,taxonomy-curator,Telephone equipment
+2026-08-a,3225,iot_connectivity_management,0.55,taxonomy-curator,Mobile telephones and SIM
+2026-08-a,35700,tactical_communications,0.85,taxonomy-curator,Military electronic systems
+2026-08-a,35113,worker_safety_monitoring,0.75,taxonomy-curator,Safety equipment
+2026-08-a,35120,ot_ics_security,0.60,taxonomy-curator,Surveillance and security systems
+2026-08-a,35120,critical_infrastructure_monitoring,0.50,taxonomy-curator,Surveillance and security systems
+2026-08-a,34711200,drone_airspace_protection,0.70,taxonomy-curator,Unmanned aerial vehicles
+2026-08-a,34970,fleet_management,0.75,taxonomy-curator,Traffic-monitoring equipment
+2026-08-a,63712,fleet_management,0.60,taxonomy-curator,Support services for road transport
+2026-08-a,63120,warehouse_automation,0.70,taxonomy-curator,Storage and warehousing services
+2026-08-a,64200,iot_connectivity_management,0.55,taxonomy-curator,Telecommunications services
+2026-08-a,64214,satellite_backup_connectivity,0.50,taxonomy-curator,Dedicated telecommunications network services
+2026-08-a,48610,data_platform_modernization,0.75,taxonomy-curator,Database systems
+2026-08-a,48311,knowledge_management,0.70,taxonomy-curator,Document management software
+2026-08-a,48490,production_scheduling,0.70,taxonomy-curator,Procurement and production software
+2026-08-a,48461,digital_twin_simulation,0.65,taxonomy-curator,Analytical or scientific software
+2026-08-a,48814,clinical_data_interoperability,0.85,taxonomy-curator,Medical information systems
+2026-08-a,30237,asset_tracking,0.45,taxonomy-curator,Parts accessories and supplies for computers
+2026-08-a,30200,device_lifecycle_management,0.60,taxonomy-curator,Computer equipment and supplies
+2026-08-a,50312,device_lifecycle_management,0.70,taxonomy-curator,Maintenance and repair of computer equipment
+2026-08-a,5053,predictive_maintenance,0.55,taxonomy-curator,Repair and maintenance of machinery
+2026-08-a,90730,emissions_monitoring,0.90,taxonomy-curator,Pollution tracking and monitoring
+2026-08-a,90700,carbon_footprint_reporting,0.55,taxonomy-curator,Environmental services
+2026-08-a,71317200,worker_safety_monitoring,0.70,taxonomy-curator,Health and safety services
+2026-08-a,71317,critical_infrastructure_monitoring,0.45,taxonomy-curator,Consultative engineering - hazard protection
+2026-08-a,71314,energy_optimization,0.75,taxonomy-curator,Energy and related services
+2026-08-a,80500,workforce_training_xr,0.45,taxonomy-curator,Training services
+2026-08-a,75250,emergency_response_coordination,0.85,taxonomy-curator,Fire brigade and rescue services
+2026-08-a,75100,citizen_service_automation,0.60,taxonomy-curator,Administration services
+2026-08-a,33100,remote_patient_monitoring,0.55,taxonomy-curator,Medical equipment
+2026-08-a,33110,medical_imaging_analytics,0.70,taxonomy-curator,Imaging equipment
+2026-08-a,66500,claims_processing,0.65,taxonomy-curator,Insurance and pension services

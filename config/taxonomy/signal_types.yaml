@@ -1,0 +1,36 @@
+# External signal taxonomy — fixed by the briefing (§3.11, FR-03).
+# Exactly six types. Used by the signal-type classifier (stage 3) and shown in
+# the topic detail view (SC-07).
+version: "2026-08-a"
+items:
+  - id: trend
+    label: Trend
+    definition: Sustained directional movement in attention, adoption or discourse. Not a single event.
+    examples: ["rising enterprise adoption of agentic AI in service desks"]
+
+  - id: regulation
+    label: Regulation
+    definition: A legal instrument, standard or supervisory requirement, adopted or in preparation, ideally with a date.
+    examples: ["NIS2 transposition deadline", "AI Act phased application", "ecodesign DPP delegated act"]
+    urgency_bearing: true
+
+  - id: buying_signal
+    label: Buying signal
+    definition: Evidence that a budget exists and is being committed — tenders, awards, RFPs, procurement frameworks.
+    examples: ["TED notice for OT security services", "framework agreement for private 5G"]
+    urgency_bearing: true
+
+  - id: market_move
+    label: Market move
+    definition: A competitor, partner or customer action that changes the market structure.
+    examples: ["acquisition", "market entry", "partnership announcement", "portfolio launch by a competitor"]
+
+  - id: technology_maturity
+    label: Technology maturity
+    definition: Evidence that a technology is becoming deployable — standard release, reference architecture, research volume.
+    examples: ["3GPP release freeze", "NIST PQC standard published", "rising patent filings"]
+
+  - id: proof_signal
+    label: Proof signal
+    definition: Evidence that someone has actually done it — a deployment, a pilot with results, a published case.
+    examples: ["published customer deployment", "pilot outcome with measured ROI"]

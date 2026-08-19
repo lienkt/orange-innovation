@@ -1,0 +1,552 @@
+# Source catalogue (Appendix A / Table 37).
+# `connector` names a class registered in radar.connectors.REGISTRY.
+# `default_tier` is the connector's declared tier; publisher_overrides in
+# config/source_tiers.yaml take precedence per item.
+# `enabled: false` sources are catalogued but not wired at MVP — the catalogue
+# is the requirements record, not only the runtime config.
+#
+# NFR-07 / DR-08: every enabled source must have `terms_checked` set before it
+# runs in anything other than a prototype. `terms_checked: pending` is a Sprint 0
+# action, not an assertion that the terms permit use.
+version: "2026-08-a"
+
+sources:
+
+  # ---------------- Signals: what the world is talking about (§4.3.1) ----------------
+  - id: gdelt
+    label: GDELT Project
+    category: signals
+    connector: gdelt
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    # GDELT rate-limits aggressively (HTTP 429). One request per 6s keeps a
+    # multi-query refresh inside its budget without triggering backoff.
+    rate_limit_seconds: 6
+    params:
+      # Queries are built from the taxonomy grid at runtime; these are the seed
+      # themes for the first tranche.
+      max_records: 60
+      timespan: "14d"
+      queries:
+        - '"private 5G" AND (manufacturing OR factory OR industrial)'
+        - '"OT security" OR "industrial cybersecurity"'
+        - '"digital product passport" AND (traceability OR ecodesign)'
+        - '"sovereign cloud" AND (europe OR france OR "data residency")'
+        - '"agentic AI" AND (enterprise OR "contact center" OR insurance)'
+        - '"post-quantum" AND (migration OR cryptography OR enterprise)'
+        - '"NIS2" OR "DORA" AND compliance'
+        - '"remote patient monitoring" OR "connected health"'
+        - '"counter-drone" OR "drone detection" AND airport OR site'
+        - '"predictive maintenance" AND (energy OR utilities OR rail)'
+        - '"network slicing" AND enterprise'
+        - '"worker safety" AND (wearable OR sensor) AND industrial'
+        - '"warehouse automation" OR "autonomous mobile robots"'
+        - '"clinical data" AND (interoperability OR "health data space")'
+        - '"zero trust" AND (enterprise OR deployment)' 
+
+  - id: google_news
+    label: Google News RSS
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "en-GB"
+      gl: "GB"
+      ceid: "GB:en"
+      queries:
+        - "private 5G manufacturing deployment"
+        - "NIS2 compliance deadline enterprise"
+        - "digital product passport regulation"
+        - "sovereign cloud SecNumCloud enterprise"
+        - "agentic AI contact center deployment"
+        - "post-quantum cryptography migration enterprise"
+        - "OT security critical infrastructure directive"
+        - "drone detection airport security"
+        - "SD-WAN branch network modernisation"
+        - "network slicing enterprise service"
+        - "satellite connectivity remote sites enterprise"
+        - "predictive maintenance rail utilities"
+        - "worker safety wearables industrial"
+        - "warehouse automation robotics logistics"
+        - "claims automation insurance AI"
+        - "digital workplace collaboration sovereign"
+        - "identity access management zero trust"
+        - "emissions monitoring industrial compliance"
+        - "clinical data interoperability EHDS"
+        - "citizen services digital government platform"
+
+  - id: google_news_fr
+    label: Google News RSS (French)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    # FR-28 requires English AND French source ingestion, and Table 36 lists
+    # "anglophone and EU bias in sources" as a principal risk whose mitigation
+    # is multilingual ingestion plus explicit language-coverage monitoring.
+    # Without this feed the first live run was 100% English across 468 signals,
+    # which fails FR-28 outright and makes the NFR-08 coverage metric report a
+    # blind spot rather than a balance.
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "fr-FR"
+      gl: "FR"
+      ceid: "FR:fr"
+      queries:
+        - "5G privé industrie déploiement"
+        - "cybersécurité NIS2 conformité entreprise"
+        - "cloud souverain SecNumCloud entreprise"
+        - "passeport numérique produit réglementation"
+        - "intelligence artificielle agents entreprise"
+        - "détection drones aéroport sécurité"
+        - "cryptographie post-quantique migration"
+        - "télésurveillance médicale patients"
+        - "réseau SD-WAN entreprise modernisation"
+        - "maintenance prédictive industrie"
+        - "sécurité OT systèmes industriels"
+        - "interopérabilité données de santé"
+        - "services publics numériques citoyens"
+        - "traçabilité chaîne approvisionnement"
+
+  - id: bing_news
+    label: Bing News RSS
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    # A second news engine is not redundancy: SC-03 measures diversity across
+    # PUBLISHERS, and Bing surfaces materially different outlets from Google.
+    params:
+      endpoint: "https://www.bing.com/news/search"
+      query_param: "q"
+      extra_params: {format: "RSS"}
+      queries:
+        - "private 5G enterprise deployment"
+        - "OT security manufacturing"
+        - "sovereign cloud europe enterprise"
+        - "post-quantum migration enterprise"
+        - "digital product passport compliance"
+        - "agentic AI contact centre"
+        - "drone detection critical infrastructure"
+        - "remote patient monitoring connectivity"
+        - "SD-WAN network modernisation"
+        - "NIS2 DORA compliance deadline"
+
+  - id: trade_press
+    label: Independent trade press (Light Reading, The Register)
+    category: signals
+    connector: rss_feed
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    # §4.3.7 tier 2 — "established trade and general press with editorial
+    # independence". The corpus was overwhelmingly tier 1 (official) and tier 4
+    # was absent entirely, which left evidence quality untested against the
+    # middle of the scale and diversity thinner than it looked.
+    params:
+      feeds:
+        - "https://www.lightreading.com/rss.xml"
+        - "https://www.theregister.com/headlines.atom"
+
+  - id: cert_eu
+    label: CERT-EU security advisories
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 3
+    params:
+      feeds:
+        - "https://cert.europa.eu/publications/security-advisories-rss"
+
+  - id: ncsc_uk
+    label: UK NCSC
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 7
+    # §2.6: urgency is jurisdiction-specific, and the corpus had no UK signal.
+    params:
+      feeds:
+        - "https://www.ncsc.gov.uk/api/1/services/v1/report-rss-feed.xml"
+
+  - id: uk_contracts
+    label: UK Contracts Finder
+    category: procurement
+    connector: uk_contracts
+    enabled: true
+    default_tier: 1
+    terms_checked: "Open Government Licence v3.0 — confirm attribution wording in Sprint 0"
+    cadence_days: 7
+    params:
+      endpoint: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search"
+      limit_per_query: 50
+      # Releases carry CPV, so UK tenders join the same crosswalk as TED.
+      keywords:
+        - "network services"
+        - "cyber security"
+        - "cloud hosting"
+        - "data platform"
+        - "telephony"
+        - "artificial intelligence"
+
+  - id: crossref
+    label: Crossref
+    category: technology
+    connector: crossref
+    enabled: true
+    default_tier: 1
+    terms_checked: "Crossref REST API — open, polite pool with mailto"
+    cadence_days: 7
+    params:
+      endpoint: "https://api.crossref.org/works"
+      rows: 25
+      since_days: 540
+      mailto: "stephane@stepvda.com"
+      queries:
+        - "private 5G industrial network"
+        - "post-quantum cryptography migration"
+        - "digital product passport traceability"
+        - "industrial control system security"
+        - "edge computing latency manufacturing"
+        - "federated learning industry"
+        - "remote patient monitoring"
+        - "network slicing enterprise"
+
+  - id: hacker_news
+    label: Hacker News
+    category: signals
+    connector: hackernews
+    enabled: true
+    default_tier: 3
+    terms_checked: "Algolia HN Search API — free, no key"
+    cadence_days: 1
+    params:
+      endpoint: "https://hn.algolia.com/api/v1/search_by_date"
+      hits_per_page: 25
+      # A submission nobody upvoted is not attention.
+      min_points: 3
+      queries:
+        - "private 5G"
+        - "post-quantum cryptography"
+        - "edge inference"
+        - "industrial IoT security"
+        - "digital product passport"
+        - "sovereign cloud"
+        - "agentic AI enterprise"
+        - "OT security"
+    note: "Practitioner attention, months ahead of analyst coverage; noisy and heavily anglophone (Table 17), hence tier 3."
+
+  # ---------------- Regulation: the most reliable urgency signal (§4.3.2) ----------------
+  - id: eurlex
+    label: EUR-Lex (CELLAR SPARQL)
+    category: regulation
+    connector: eurlex
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 7
+    params:
+      endpoint: "https://publications.europa.eu/webapi/rdf/sparql"
+      since_days: 400
+      # CELLAR returns one row per expression title, and several titles share a
+      # work, so rows collapse heavily on URL dedup: 120 rows yielded only 20
+      # distinct legal acts in the first live run. The limit is raised to
+      # compensate; a EuroVoc-concept query would be the proper Sprint 0 fix.
+      limit: 600
+      # EuroVoc-adjacent free-text filters over English titles.
+      title_filters:
+        - "cyber"
+        - "artificial intelligence"
+        - "data"
+        - "ecodesign"
+        - "digital"
+        - "network and information"
+        - "resilience"
+        - "health data"
+
+  - id: enisa
+    label: ENISA publications
+    category: regulation
+    connector: rss_feed
+    enabled: false
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 7
+    params:
+      feeds: []
+    note: >-
+      Strong for cybersecurity opportunity spaces (Table 18), but ENISA retired
+      its public RSS endpoints — every documented feed path returns 404 as of
+      2026-08-17. Sprint 0 action: confirm the current machine-readable access
+      route (their publications API or a scrape under agreed terms) before
+      enabling. Left catalogued rather than deleted because the source is
+      required by the requirements baseline.
+
+  - id: eu_have_your_say
+    label: EC "Have your say"
+    category: regulation
+    connector: have_your_say
+    enabled: true
+    default_tier: 1
+    terms_checked: "europa.eu reuse policy — open with attribution"
+    cadence_days: 7
+    params:
+      endpoint: "https://ec.europa.eu/info/law/better-regulation/brpapi/searchInitiatives"
+      size: 60
+      pages: 3
+      since_days: 400
+    note: >-
+      The earliest formal indicator of a coming rule (Table 18). Items are
+      tagged instrument_stage=consultation, which is what lets the horizon logic
+      place a topic in Later on policy grounds rather than by guesswork (§4.8).
+
+  - id: national_regulators
+    label: National regulators (ANSSI / CERT-FR)
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 7
+    params:
+      feeds:
+        - "https://www.cert.ssi.gouv.fr/feed/"
+    note: >-
+      Urgency is jurisdiction-specific (§2.6), so national regulators matter
+      independently of EU-level instruments. Only CERT-FR (ANSSI) is wired:
+      Ofcom returns 403 to automated clients, and the documented BNetzA and BIPT
+      feed paths 404 as of 2026-08-17. Those three remain to be sourced in
+      Sprint 0. CERT-FR also contributes French-language signal, which FR-28
+      requires.
+
+  - id: nist
+    label: NIST standards timelines
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 14
+    params:
+      feeds:
+        - "https://www.nist.gov/news-events/news/rss.xml"
+    note: "Directly supports quantum-safe topics where Orange already has an offer (Table 18)."
+
+  # ---------------- Procurement: the buying signal nobody uses (§4.3.3) ----------------
+  - id: ted
+    label: TED (Tenders Electronic Daily)
+    category: procurement
+    connector: ted
+    enabled: true
+    default_tier: 1
+    terms_checked: "open licence (EU) — confirm reuse notice in Sprint 0"
+    cadence_days: 3
+    params:
+      endpoint: "https://api.ted.europa.eu/v3/notices/search"
+      since_days: 90
+      # TED accepts no sort parameter and returns publication-date ASCENDING,
+      # so a single broad query returns only the oldest day in the window.
+      # The window is sliced instead; each slice contributes its own notices,
+      # which is what makes the procurement volume series honest (§4.6 momentum).
+      window_slice_days: 14
+      limit_per_slice: 20
+      # CPV roots drawn from the use-case vocabulary's `cpv` hints.
+      cpv_groups:
+        - {label: "IT services", cpv: ["72000000"]}
+        - {label: "Network and telecom", cpv: ["32400000", "64200000"]}
+        - {label: "Security services and systems", cpv: ["79710000", "35120000"]}
+        - {label: "Software", cpv: ["48000000"]}
+        - {label: "Health IT", cpv: ["48814000", "33100000"]}
+        - {label: "Environmental monitoring", cpv: ["90730000"]}
+        # Added to widen vertical coverage — the first runs concentrated topics
+        # in manufacturing and public sector because the CPV set did.
+        - {label: "Transport and fleet", cpv: ["34970000", "63712000", "60000000"]}
+        - {label: "Energy and utilities", cpv: ["09300000", "71314000"]}
+        - {label: "Industrial machinery and sensors", cpv: ["42000000", "38000000"]}
+        - {label: "Facilities and building systems", cpv: ["45314000", "32562000"]}
+        - {label: "Financial and insurance services", cpv: ["66000000"]}
+        - {label: "Education and training", cpv: ["80500000"]}
+        - {label: "Emergency and public safety", cpv: ["75250000", "35700000"]}
+        - {label: "Document and process services", cpv: ["79999100", "72312000"]}
+
+  - id: boamp
+    label: BOAMP (French public procurement)
+    category: procurement
+    connector: boamp
+    enabled: true
+    default_tier: 1
+    terms_checked: "Licence Ouverte / Open Licence (data.gouv.fr) — confirm in Sprint 0"
+    cadence_days: 7
+    params:
+      endpoint: "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records"
+      limit_per_query: 40
+      # BOAMP does not expose CPV reliably, so the join is by free-text subject
+      # against the use-case vocabulary rather than through the CPV crosswalk.
+      search_terms:
+        - "cybersécurité"
+        - "infogérance"
+        - "réseau informatique"
+        - "hébergement données"
+        - "intelligence artificielle"
+        - "télécommunications"
+        - "vidéoprotection"
+        - "supervision industrielle"
+        - "téléphonie"
+        - "maintenance prédictive"
+        - "plateforme données"
+        - "objets connectés"
+        - "sécurité des systèmes d'information"
+    note: "Extends procurement coverage below the EU threshold (§4.3.3) and adds French-language buying signals (FR-28)."
+
+  # ---------------- Technology maturity (§4.3.5) ----------------
+  - id: openalex
+    label: OpenAlex
+    category: technology
+    connector: openalex
+    enabled: true
+    default_tier: 1
+    terms_checked: "CC0 — open"
+    cadence_days: 7
+    params:
+      endpoint: "https://api.openalex.org/works"
+      per_page: 25
+      since_days: 365
+      queries:
+        - "private 5G industrial network"
+        - "federated learning industrial"
+        - "post-quantum cryptography migration"
+        - "computer vision defect detection manufacturing"
+        - "digital product passport traceability"
+        - "remote patient monitoring connectivity"
+        - "network slicing quality of service enterprise"
+        - "industrial anomaly detection time series"
+        - "digital twin manufacturing process"
+        - "edge AI inference latency"
+        - "supply chain traceability blockchain"
+        - "worker safety sensing industrial"
+
+  - id: arxiv
+    label: arXiv
+    category: technology
+    connector: arxiv
+    enabled: true
+    default_tier: 3
+    terms_checked: "arXiv API terms — attribution required"
+    cadence_days: 7
+    params:
+      endpoint: "http://export.arxiv.org/api/query"
+      max_results: 20
+      queries:
+        - "all:\"network slicing\" AND all:industrial"
+        - "all:\"post-quantum\" AND all:migration"
+        - "all:\"anomaly detection\" AND all:\"industrial control\""
+        - "all:\"digital twin\" AND all:manufacturing"
+        - "all:\"federated learning\" AND all:privacy"
+        - "all:\"edge computing\" AND all:latency"
+
+  - id: cordis
+    label: CORDIS
+    category: technology
+    connector: cordis
+    enabled: true
+    default_tier: 1
+    terms_checked: "CC-BY — open"
+    cadence_days: 30
+    params:
+      endpoint: "https://cordis.europa.eu/api/search/results"
+      num: 25
+      since_days: 900
+      queries:
+        - "private 5G industrial"
+        - "post-quantum cryptography"
+        - "digital product passport"
+        - "cybersecurity critical infrastructure"
+        - "edge computing manufacturing"
+        - "trustworthy artificial intelligence"
+        - "network slicing 6G"
+        - "predictive maintenance industry"
+        - "health data interoperability"
+        - "smart energy grid digitalisation"
+        - "autonomous logistics transport"
+    note: >-
+      Shows what Europe has decided to fund, often with Orange or its partners
+      as participants (Table 20). The search API is used rather than the 139 MB
+      bulk download, which suits a per-refresh cadence far better. A long window
+      is deliberate: funded projects are a multi-year leading indicator.
+
+  - id: patents
+    label: Patent databases (EPO OPS / PatentsView / Google Patents)
+    category: technology
+    connector: patents
+    enabled: false
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 30
+    params: {}
+    note: >-
+      §2.5: Orange's own patent activity is a leading indicator and a stronger
+      right-to-win statement than a CRM overlap count. Needs EPO OPS registration
+      or BigQuery credentials — deferred to the internal-catalogue cadence.
+
+  - id: standards_bodies
+    label: 3GPP, ETSI, O-RAN, IETF, GSMA
+    category: technology
+    connector: rss_feed
+    enabled: false
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 30
+    params: {feeds: []}
+    note: "The most reliable way to date when a network technology becomes deployable (Table 20)."
+
+  # ---------------- Market size and adoption (§4.3.4) ----------------
+  - id: eurostat_ict
+    label: Eurostat — ICT usage in enterprises
+    category: market_size
+    connector: eurostat
+    enabled: false
+    default_tier: 1
+    terms_checked: "Eurostat reuse policy — open with attribution"
+    cadence_days: 90
+    params: {}
+    note: >-
+      Gives both a denominator for bottom-up sizing and an adoption gap that is
+      itself an opportunity (Table 19). Required before market sizing moves off
+      published figures (§4.3.4 caution).
+
+  - id: eurostat_sbs
+    label: Eurostat — Structural Business Statistics
+    category: market_size
+    connector: eurostat
+    enabled: false
+    default_tier: 1
+    terms_checked: "Eurostat reuse policy — open with attribution"
+    cadence_days: 180
+    params: {}
+
+  # ---------------- Foresight (§4.3.6) ----------------
+  - id: ec_foresight
+    label: EC Megatrends Hub / EU Strategic Foresight Report
+    category: foresight
+    connector: rss_feed
+    enabled: false
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 90
+    params: {feeds: []}
+    note: "Maps cleanly onto the Later horizon (Table 21)."

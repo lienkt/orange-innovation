@@ -1,0 +1,495 @@
+# Use-case vocabulary — SPRINT 0 DELIVERABLE (§3.3).
+# The briefing gives examples only; §3.3 sets a tractable target of 40-60 use
+# cases, each with a definition, synonyms and exclusions, so that the LLM can be
+# constrained to emit only valid values (§4.4.2).
+#
+# STATUS: draft for client review. Open question 8 (§4.13) asks whether an
+# internal Orange use-case taxonomy exists that should be adopted instead.
+#
+# `cpv` hints drive the TED procurement join (LK-02). `nace_bias` is unused at
+# MVP and reserved for bottom-up sizing.
+version: "2026-08-a"
+owner: "taxonomy-curator"
+count_target: "40-60"
+items:
+
+  # ---------- Industrial / operational ----------
+  - id: energy_optimization
+    label: Energy optimisation
+    definition: Reducing energy consumption or cost in industrial processes, buildings or networks through measurement, prediction and control.
+    synonyms: [energy efficiency, energy management, load optimisation, consumption reduction]
+    exclusions: [emissions_monitoring, carbon_footprint_reporting]
+    domains: [ox_smart_industries]
+    cpv: ["71314", "09300000", "45259000"]
+
+  - id: predictive_maintenance
+    label: Predictive maintenance
+    definition: Predicting equipment failure from sensor or telemetry data to intervene before breakdown.
+    synonyms: [condition monitoring, failure prediction, prognostics, PdM]
+    exclusions: [quality_inspection, asset_tracking]
+    domains: [ox_smart_industries]
+    cpv: ["50000000", "50500000"]
+
+  - id: quality_inspection
+    label: Automated quality inspection
+    definition: Detecting product or process defects automatically during or after production.
+    synonyms: [defect detection, visual inspection, AOI, in-line inspection]
+    exclusions: [predictive_maintenance, product_traceability]
+    domains: [ox_smart_industries]
+    cpv: ["38000000", "71600000"]
+
+  - id: worker_safety_monitoring
+    label: Worker safety monitoring
+    definition: Detecting unsafe conditions, PPE non-compliance, exposure or worker distress on industrial sites.
+    synonyms: [PPE compliance, HSE monitoring, lone worker, hazard detection, safety compliance]
+    exclusions: [quality_inspection, emergency_response_coordination]
+    domains: [ox_smart_industries]
+    cpv: ["35113000", "71317200"]
+
+  - id: asset_tracking
+    label: Asset and inventory tracking
+    definition: Locating and tracking physical assets, tools, containers or stock across sites.
+    synonyms: [RTLS, indoor positioning, inventory visibility, container tracking, asset visibility]
+    exclusions: [fleet_management, warehouse_automation]
+    domains: [ox_smart_industries, connectivity_solutions]
+    cpv: ["30237000", "34970000"]
+
+  - id: production_scheduling
+    label: Production planning and scheduling
+    definition: Optimising the sequence and allocation of production orders across lines and sites.
+    synonyms: [APS, shop-floor scheduling, capacity planning, line balancing]
+    exclusions: [demand_forecasting]
+    domains: [ox_smart_industries]
+    cpv: ["48490000"]
+
+  - id: remote_operations
+    label: Remote and autonomous operations
+    definition: Operating industrial equipment, vehicles or sites remotely or with reduced on-site presence.
+    synonyms: [teleoperation, remote control, unmanned operations, remote driving]
+    exclusions: [field_service_support]
+    domains: [ox_smart_industries, connectivity_solutions]
+    cpv: ["32000000"]
+
+  - id: digital_twin_simulation
+    label: Digital twin and simulation
+    definition: Maintaining a live virtual model of a physical asset, process or network for simulation and what-if analysis.
+    synonyms: [virtual commissioning, process simulation, network twin, asset twin]
+    exclusions: [predictive_maintenance]
+    domains: [ox_smart_industries, cloud]
+    cpv: ["48461000"]
+
+  - id: emissions_monitoring
+    label: Emissions and environmental monitoring
+    definition: Continuous measurement and reporting of emissions, effluent or environmental parameters, usually against a regulatory obligation.
+    synonyms: [CEMS, air quality monitoring, effluent monitoring, environmental compliance]
+    exclusions: [carbon_footprint_reporting, energy_optimization]
+    domains: [ox_smart_industries]
+    cpv: ["90730000", "38341000"]
+
+  - id: product_traceability
+    label: Product traceability and digital product passport
+    definition: Recording and exposing the origin, composition and lifecycle of a product or material along the value chain.
+    synonyms: [digital product passport, DPP, provenance, chain of custody, serialisation]
+    exclusions: [asset_tracking, supply_chain_risk_monitoring]
+    domains: [ox_smart_industries]
+    cpv: ["48000000", "79132000"]
+
+  - id: warehouse_automation
+    label: Warehouse and intralogistics automation
+    definition: Automating storage, picking and internal movement of goods within a facility.
+    synonyms: [intralogistics, AGV fleet, automated picking, goods-to-person]
+    exclusions: [asset_tracking, fleet_management]
+    domains: [ox_smart_industries]
+    cpv: ["42000000", "63120000"]
+
+  - id: fleet_management
+    label: Fleet and vehicle management
+    definition: Monitoring and optimising a fleet of vehicles or mobile equipment on the road or on site.
+    synonyms: [telematics, vehicle tracking, fleet telematics, driver monitoring]
+    exclusions: [asset_tracking, warehouse_automation]
+    domains: [ox_smart_industries, connectivity_solutions]
+    cpv: ["34000000", "63712000"]
+
+  - id: cold_chain_monitoring
+    label: Cold chain and condition monitoring
+    definition: Monitoring temperature, humidity or shock for sensitive goods in transit or storage.
+    synonyms: [temperature monitoring, cold chain integrity, pharma logistics monitoring]
+    exclusions: [asset_tracking]
+    domains: [ox_smart_industries]
+    cpv: ["60000000", "33190000"]
+
+  - id: yield_optimization
+    label: Process yield optimisation
+    definition: Increasing output quality or throughput of a continuous or batch process through analytics and closed-loop control.
+    synonyms: [process optimisation, throughput optimisation, golden batch, OEE improvement]
+    exclusions: [energy_optimization, quality_inspection]
+    domains: [ox_smart_industries]
+    cpv: ["72316000"]
+
+  # ---------- Customer experience ----------
+  - id: contact_center_automation
+    label: Contact centre automation
+    definition: Automating or assisting customer service interactions in voice or digital channels.
+    synonyms: [call deflection, agent assist, IVR modernisation, CCaaS automation, claims deflection]
+    exclusions: [customer_self_service, conversational_commerce]
+    domains: [cx_customer_experience]
+    cpv: ["79512000", "48000000"]
+
+  - id: customer_self_service
+    label: Customer self-service
+    definition: Enabling customers to resolve requests without human contact through portals, apps or assistants.
+    synonyms: [self-care, digital servicing, self-service portal, deflection]
+    exclusions: [contact_center_automation]
+    domains: [cx_customer_experience]
+    cpv: ["72413000"]
+
+  - id: conversational_commerce
+    label: Conversational commerce and sales assistance
+    definition: Driving sales or advice through conversational interfaces in retail and services.
+    synonyms: [shopping assistant, conversational sales, chat commerce, virtual advisor]
+    exclusions: [customer_self_service, personalization_recommendation]
+    domains: [cx_customer_experience]
+    cpv: ["72212400"]
+
+  - id: customer_journey_analytics
+    label: Customer journey analytics
+    definition: Measuring and diagnosing customer behaviour across channels to reduce friction and churn.
+    synonyms: [journey orchestration, churn analytics, CVM, experience analytics]
+    exclusions: [personalization_recommendation]
+    domains: [cx_customer_experience, cloud]
+    cpv: ["72316000"]
+
+  - id: personalization_recommendation
+    label: Personalisation and recommendation
+    definition: Tailoring content, offers or pricing to an individual customer in real time.
+    synonyms: [recommendation engine, next best offer, targeting, dynamic offers]
+    exclusions: [customer_journey_analytics]
+    domains: [cx_customer_experience]
+    cpv: ["72316000"]
+
+  - id: fraud_detection
+    label: Fraud detection
+    definition: Detecting fraudulent transactions, identities or usage patterns in real time.
+    synonyms: [anti-fraud, transaction monitoring, AML screening, abuse detection]
+    exclusions: [threat_detection_response, onboarding_kyc]
+    domains: [cybersecurity, cx_customer_experience]
+    cpv: ["66000000", "72316000"]
+
+  - id: claims_processing
+    label: Claims and case processing
+    definition: Automating the intake, assessment and settlement of insurance claims or administrative cases.
+    synonyms: [claims automation, case handling, first notice of loss, adjudication]
+    exclusions: [document_intelligence, contact_center_automation]
+    domains: [cx_customer_experience]
+    cpv: ["66500000", "79940000"]
+
+  - id: onboarding_kyc
+    label: Customer onboarding and identity verification
+    definition: Verifying and enrolling a customer, including identity, eligibility and compliance checks.
+    synonyms: [KYC, eKYC, digital identity verification, customer enrolment, AML onboarding]
+    exclusions: [identity_access_management, fraud_detection]
+    domains: [cx_customer_experience, cybersecurity]
+    cpv: ["79132000", "72212000"]
+
+  # ---------- Employee experience ----------
+  - id: workplace_collaboration
+    label: Digital workplace and collaboration
+    definition: Providing secure communication, meeting and collaboration tooling to employees.
+    synonyms: [UCaaS, unified communications, modern workplace, meeting rooms, sovereign collaboration]
+    exclusions: [employee_assistant, device_lifecycle_management]
+    domains: [ex_employee_experience]
+    cpv: ["32550000", "48000000"]
+
+  - id: field_service_support
+    label: Field service support
+    definition: Equipping field technicians with connectivity, guidance and remote expertise at the point of work.
+    synonyms: [remote assistance, technician enablement, mobile workforce, see-what-I-see]
+    exclusions: [remote_operations, workforce_training_xr]
+    domains: [ex_employee_experience, ox_smart_industries]
+    cpv: ["50000000"]
+
+  - id: employee_assistant
+    label: Employee AI assistant
+    definition: An AI assistant that answers employee questions or executes tasks against internal systems.
+    synonyms: [internal copilot, HR assistant, IT helpdesk bot, enterprise assistant]
+    exclusions: [knowledge_management, contact_center_automation]
+    domains: [ex_employee_experience]
+    cpv: ["72212000"]
+
+  - id: knowledge_management
+    label: Enterprise knowledge management
+    definition: Making internal documents and expertise findable and reusable across an organisation.
+    synonyms: [enterprise search, document retrieval, knowledge base, expertise location]
+    exclusions: [employee_assistant, document_intelligence]
+    domains: [ex_employee_experience, cloud]
+    cpv: ["48311000"]
+
+  - id: workforce_training_xr
+    label: Immersive workforce training
+    definition: Training operators or technicians using simulated or augmented environments.
+    synonyms: [VR training, simulation training, immersive learning, safety drills]
+    exclusions: [field_service_support]
+    domains: [ex_employee_experience]
+    cpv: ["80500000"]
+
+  - id: device_lifecycle_management
+    label: Device and endpoint lifecycle management
+    definition: Provisioning, securing, supporting and retiring employee and industrial endpoints at scale.
+    synonyms: [MDM, UEM, endpoint management, device as a service, DaaS]
+    exclusions: [workplace_collaboration]
+    domains: [ex_employee_experience, cybersecurity]
+    cpv: ["30200000", "50312000"]
+
+  # ---------- Cybersecurity ----------
+  - id: threat_detection_response
+    label: Threat detection and response
+    definition: Detecting, investigating and responding to security incidents across IT estates.
+    synonyms: [MDR, SOC services, XDR, incident response, threat hunting]
+    exclusions: [ot_ics_security, fraud_detection]
+    domains: [cybersecurity]
+    cpv: ["79710000", "72500000"]
+
+  - id: ot_ics_security
+    label: OT and industrial control system security
+    definition: Securing industrial control systems, production networks and critical operational technology.
+    synonyms: [ICS security, SCADA security, OT/IT convergence, industrial cybersecurity]
+    exclusions: [threat_detection_response]
+    domains: [cybersecurity, ox_smart_industries]
+    cpv: ["35120000", "72500000"]
+
+  - id: identity_access_management
+    label: Identity and access management
+    definition: Controlling who and what can access which systems, including privileged and machine identity.
+    synonyms: [IAM, PAM, SSO, zero trust access, machine identity]
+    exclusions: [onboarding_kyc]
+    domains: [cybersecurity]
+    cpv: ["72212730"]
+
+  - id: regulatory_compliance_reporting
+    label: Regulatory compliance and reporting
+    definition: Producing the evidence, controls and reports a specific regulation requires, on its deadline.
+    synonyms: [NIS2 compliance, DORA compliance, audit evidence, controls attestation, CRA conformity]
+    exclusions: [emissions_monitoring, carbon_footprint_reporting]
+    domains: [cybersecurity]
+    cpv: ["79212000", "79418000"]
+
+  - id: data_sovereignty_protection
+    label: Data sovereignty and protection
+    definition: Keeping data, keys and processing under a defined jurisdiction and operator control.
+    synonyms: [data residency, sovereign hosting, key management, schrems, confidential processing]
+    exclusions: [post_quantum_migration, sovereign_ai_enclave]
+    domains: [cybersecurity, cloud]
+    cpv: ["72300000", "72222300"]
+
+  - id: post_quantum_migration
+    label: Post-quantum cryptography migration
+    definition: Inventorying and migrating cryptography to quantum-resistant algorithms and key distribution.
+    synonyms: [PQC migration, crypto agility, quantum-safe, harvest now decrypt later]
+    exclusions: [data_sovereignty_protection]
+    domains: [cybersecurity]
+    cpv: ["72500000"]
+
+  - id: supply_chain_risk_monitoring
+    label: Supply chain risk monitoring
+    definition: Monitoring third parties, suppliers and software components for security, continuity or compliance risk.
+    synonyms: [third-party risk, SBOM, vendor risk, supplier continuity, TPRM]
+    exclusions: [product_traceability]
+    domains: [cybersecurity]
+    cpv: ["79418000"]
+
+  - id: drone_airspace_protection
+    label: Drone detection and airspace protection
+    definition: Detecting, classifying and responding to unauthorised drones over a site or low-altitude airspace.
+    synonyms: [counter-UAS, C-UAS, drone detection, airspace security]
+    exclusions: [critical_infrastructure_monitoring]
+    domains: [cybersecurity, connectivity_solutions]
+    cpv: ["35000000", "34711200"]
+
+  # ---------- Connectivity ----------
+  - id: private_network_deployment
+    label: Private network deployment
+    definition: Deploying a dedicated cellular or hybrid network on an industrial, campus or public site.
+    synonyms: [private 5G, private LTE, campus network, dedicated network, neutral host]
+    exclusions: [indoor_coverage, site_connectivity_resilience]
+    domains: [connectivity_solutions]
+    cpv: ["32412000", "32500000"]
+
+  - id: network_automation
+    label: Network automation and assurance
+    definition: Automating provisioning, configuration and assurance of enterprise or operator networks.
+    synonyms: [intent-based networking, zero-touch provisioning, closed-loop assurance, NaaS ordering]
+    exclusions: [it_operations_automation]
+    domains: [connectivity_solutions]
+    cpv: ["72315000"]
+
+  - id: site_connectivity_resilience
+    label: Multi-site connectivity and resilience
+    definition: Connecting distributed sites with the required availability, path diversity and application performance.
+    synonyms: [SD-WAN deployment, branch connectivity, WAN transformation, failover, path diversity]
+    exclusions: [private_network_deployment, satellite_backup_connectivity]
+    domains: [connectivity_solutions]
+    cpv: ["32412110", "72400000"]
+
+  - id: iot_connectivity_management
+    label: IoT connectivity management
+    definition: Providing and managing connectivity for large fleets of devices, including SIM and lifecycle operations.
+    synonyms: [SIM management, eSIM, device connectivity, M2M, connectivity platform]
+    exclusions: [asset_tracking]
+    domains: [connectivity_solutions]
+    cpv: ["64200000", "32250000"]
+
+  - id: indoor_coverage
+    label: Indoor and venue coverage
+    definition: Delivering reliable mobile and wireless coverage inside buildings, venues and underground sites.
+    synonyms: [DAS, in-building coverage, venue connectivity, small cells]
+    exclusions: [private_network_deployment]
+    domains: [connectivity_solutions]
+    cpv: ["32562000", "45314000"]
+
+  - id: satellite_backup_connectivity
+    label: Satellite and non-terrestrial connectivity
+    definition: Connecting remote, mobile or backup sites via satellite or direct-to-device non-terrestrial networks.
+    synonyms: [LEO connectivity, NTN, satellite backup, direct-to-device, maritime connectivity]
+    exclusions: [site_connectivity_resilience]
+    domains: [connectivity_solutions]
+    cpv: ["32534000", "64214000"]
+
+  - id: network_as_sensor_analytics
+    label: Network-as-a-sensor analytics
+    definition: Using network telemetry itself as the detection substrate for security or operational insight.
+    synonyms: [network detection and response, NDR, flow analytics, traffic intelligence]
+    exclusions: [threat_detection_response]
+    domains: [connectivity_solutions, cybersecurity]
+    cpv: ["72315200"]
+
+  # ---------- Cloud and data ----------
+  - id: data_platform_modernization
+    label: Data platform modernisation
+    definition: Consolidating enterprise data into a governed platform usable for analytics and AI.
+    synonyms: [data lakehouse, data mesh, data warehouse migration, data governance platform]
+    exclusions: [ai_model_governance, legacy_application_migration]
+    domains: [cloud]
+    cpv: ["72322000", "48610000"]
+
+  - id: legacy_application_migration
+    label: Legacy application migration
+    definition: Moving or refactoring existing workloads onto modern cloud or container infrastructure.
+    synonyms: [cloud migration, replatforming, mainframe modernisation, SAP migration, exit strategy]
+    exclusions: [data_platform_modernization, edge_workload_orchestration]
+    domains: [cloud]
+    cpv: ["72220000", "72510000"]
+
+  - id: edge_workload_orchestration
+    label: Edge workload orchestration
+    definition: Running and managing compute workloads close to where data is produced, across many sites.
+    synonyms: [edge computing deployment, far edge, distributed cloud, on-premise cloud]
+    exclusions: [legacy_application_migration]
+    domains: [cloud, connectivity_solutions]
+    cpv: ["72514000"]
+
+  - id: ai_model_governance
+    label: AI governance and assurance
+    definition: Controlling, documenting and auditing AI systems against internal policy and the AI Act.
+    synonyms: [AI Act compliance, model risk management, AI registry, responsible AI, model cards]
+    exclusions: [regulatory_compliance_reporting, sovereign_ai_enclave]
+    domains: [cloud, cybersecurity]
+    cpv: ["72316000", "79418000"]
+
+  - id: document_intelligence
+    label: Document intelligence
+    definition: Extracting structured meaning from unstructured documents at volume.
+    synonyms: [IDP, OCR pipeline, contract analytics, invoice processing, form understanding]
+    exclusions: [knowledge_management, claims_processing]
+    domains: [cloud, ex_employee_experience]
+    cpv: ["72312000", "79999100"]
+
+  - id: demand_forecasting
+    label: Demand and capacity forecasting
+    definition: Predicting future demand, load or capacity requirements to plan supply.
+    synonyms: [sales forecasting, load forecasting, inventory forecasting, capacity planning]
+    exclusions: [production_scheduling]
+    domains: [cloud, ox_smart_industries]
+    cpv: ["72316000"]
+
+  - id: it_operations_automation
+    label: IT operations automation
+    definition: Automating detection, triage and remediation across IT estates.
+    synonyms: [AIOps, observability, self-healing, incident automation, SRE tooling]
+    exclusions: [network_automation, threat_detection_response]
+    domains: [cloud]
+    cpv: ["72514000", "72267000"]
+
+  - id: sovereign_ai_enclave
+    label: Sovereign AI enclave
+    definition: Running AI training or inference on infrastructure under a defined jurisdiction with certified isolation.
+    synonyms: [trusted AI environment, SecNumCloud AI, air-gapped AI, confidential inference, national AI cloud]
+    exclusions: [data_sovereignty_protection, ai_model_governance]
+    domains: [cloud, cybersecurity]
+    cpv: ["72222300", "72514000"]
+
+  # ---------- Health ----------
+  - id: remote_patient_monitoring
+    label: Remote patient monitoring
+    definition: Monitoring patient physiological data outside a care facility over trusted connectivity.
+    synonyms: [telemonitoring, telehealth, connected medical device, home care monitoring]
+    exclusions: [medical_imaging_analytics]
+    domains: [ox_smart_industries, connectivity_solutions]
+    cpv: ["33100000", "85100000"]
+
+  - id: medical_imaging_analytics
+    label: Medical imaging analytics
+    definition: Computer-assisted analysis of medical images for detection, triage or measurement.
+    synonyms: [imaging AI, radiology AI, CAD, diagnostic imaging analytics]
+    exclusions: [remote_patient_monitoring]
+    domains: [cloud]
+    cpv: ["33110000", "72212000"]
+
+  - id: clinical_data_interoperability
+    label: Clinical data interoperability
+    definition: Exchanging health data between systems and institutions under health-specific certification.
+    synonyms: [HL7 FHIR, health data exchange, EHR integration, health data space, EHDS]
+    exclusions: [data_platform_modernization]
+    domains: [cloud]
+    cpv: ["48814000", "72212000"]
+
+  # ---------- Public sector and defense ----------
+  - id: citizen_service_automation
+    label: Citizen service automation
+    definition: Digitalising and automating public services delivered to citizens or businesses.
+    synonyms: [e-government, digital public services, once-only principle, public portal]
+    exclusions: [customer_self_service]
+    domains: [cx_customer_experience, cloud]
+    cpv: ["75100000", "72512000"]
+
+  - id: critical_infrastructure_monitoring
+    label: Critical infrastructure monitoring
+    definition: Monitoring the physical and cyber integrity of infrastructure designated as essential or critical.
+    synonyms: [CNI protection, essential entities, perimeter monitoring, grid monitoring, CER directive]
+    exclusions: [ot_ics_security, drone_airspace_protection]
+    domains: [cybersecurity, ox_smart_industries]
+    cpv: ["35120000", "71317000"]
+
+  - id: tactical_communications
+    label: Tactical and mission-critical communications
+    definition: Deployable, resilient communications for defense, emergency services or crisis operations.
+    synonyms: [mission-critical push-to-talk, MCPTT, deployable network, tactical bubble, PPDR]
+    exclusions: [private_network_deployment, emergency_response_coordination]
+    domains: [connectivity_solutions]
+    cpv: ["35700000", "32000000"]
+
+  - id: emergency_response_coordination
+    label: Emergency response coordination
+    definition: Coordinating people, assets and information during an incident or crisis.
+    synonyms: [crisis management, command and control, public warning, incident coordination]
+    exclusions: [tactical_communications, worker_safety_monitoring]
+    domains: [cx_customer_experience, connectivity_solutions]
+    cpv: ["75250000"]
+
+  # ---------- Sustainability ----------
+  - id: carbon_footprint_reporting
+    label: Carbon and sustainability reporting
+    definition: Measuring and reporting the environmental footprint of operations, products or IT estates.
+    synonyms: [CSRD reporting, scope 3, ESG reporting, green IT measurement, ecodesign reporting]
+    exclusions: [emissions_monitoring, energy_optimization]
+    domains: [cloud, ox_smart_industries]
+    cpv: ["90700000", "79212000"]

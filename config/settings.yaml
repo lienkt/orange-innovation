@@ -1,0 +1,200 @@
+# Radar runtime configuration.
+# SC-10 / NFR-11: weights and thresholds are configuration, not code. Every
+# published score records the `weight_set` id below (DR-05, §4.6 calibration
+# drift guard). CHANGING ANY WEIGHT REQUIRES A NEW weight_set ID — scores across
+# a version boundary are not comparable and the UI must not plot them together.
+
+weight_set: "w-2026-08-a"
+pipeline_version: "0.1.0"
+
+# ---- Attractiveness (SC-01). Briefing's indicative figures; to be calibrated.
+attractiveness_weights:
+  market_signal_strength: 0.30
+  source_diversity: 0.20
+  evidence_quality: 0.20
+  novelty_momentum: 0.15
+  strategic_relevance: 0.15
+
+# ---- Right to win (SC-12) — scored and displayed separately, never merged.
+right_to_win_weights:
+  offer_match: 0.25
+  reference_density: 0.20
+  partner_coverage: 0.15
+  compliance_fit: 0.12
+  capability_depth: 0.12
+  external_validation: 0.08
+  technology_ownership: 0.08
+
+scoring:
+  # Trailing window for signal-volume and momentum computation, in days.
+  trailing_window_days: 90
+  # Number of trailing periods used for the momentum slope.
+  momentum_periods: 6
+  # Log compression base for market signal strength (§4.6): prevents a single
+  # noisy topic saturating the scale.
+  signal_volume_log_base: 2.0
+  # Evidence-quality floor penalty when no tier-1 or tier-2 evidence exists.
+  no_credible_evidence_penalty: 0.45
+  # §4.6 score-compression guard: the strategic-relevance rubric uses discrete
+  # levels with anchors, mapped to numbers here rather than a free 0-100 ask.
+  rubric_levels: {0: 0, 1: 20, 2: 40, 3: 60, 4: 80, 5: 100}
+
+# ---- Lifecycle thresholds (§4.8, FR-09).
+lifecycle:
+  promote_to_active:
+    min_signals: 4
+    min_distinct_publishers: 3
+    min_evidence_quality: 45
+    require_non_tier4_evidence: true
+  watchlist_min_signals: 1
+  # Refresh periods without a qualifying signal before demotion.
+  fading_after_periods: 1
+  dormant_after_periods: 3
+  # A period is one refresh cadence window.
+  period_days: 14
+
+# ---- Time horizon derivation (§4.8, FR-08).
+horizon:
+  now_max_months: 12
+  next_max_months: 36
+  # Published Orange commitment dates usable as anchors (§2.4 consequence 3).
+  orange_anchors:
+    "2028-12-31": "Trust the future 2028 revenue commitments"
+    "2030-12-31": "Orange Cyberdefense €2bn; -45% GHG"
+    "2040-12-31": "Net Zero Carbon"
+
+# ---- Curation / specificity validation (§4.4, FR-06).
+curation:
+  # A candidate must resolve to exactly one vertical, use case and technology.
+  require_exact_triple: true
+  # Near-duplicate merge threshold on opportunity-statement embeddings (§4.4.5).
+  duplicate_similarity_threshold: 0.86
+  # Statement length guards against both slogans and paragraphs.
+  statement_min_chars: 40
+  statement_max_chars: 180
+  # Generic terms that fail specificity validation on their own.
+  banned_generic_statements:
+    - "ai"
+    - "cloud"
+    - "cybersecurity"
+    - "digital transformation"
+    - "5g"
+    - "data"
+    - "innovation"
+    - "automation"
+  # Over-produce then keep the best (§4.4.3 diversity by construction).
+  candidates_per_cluster: 3
+  critic_min_score: 3   # of 5; below this the candidate is revised once, then dropped
+
+# ---- Clustering (stage 4).
+clustering:
+  # Deterministic agglomerative clustering — reproducibility is a requirement
+  # (SC-11), so no randomised initialisation is used.
+  distance_threshold: 0.62
+  min_cluster_size: 3
+  max_clusters: 120
+
+# ---- Evidence enrichment (§4.4.5 "new signals attach to the existing topic").
+enrichment:
+  # Cosine similarity between the topic statement and the signal span.
+  similarity_threshold: 0.45
+  # Cap per topic per refresh, so one broad topic cannot absorb the corpus and
+  # distort the cross-topic normalisation that market signal strength uses.
+  max_new_signals_per_topic: 12
+  # Similarity alone is not evidence: embeddings rate unrelated security items
+  # as close. A second, independent reason is required — a vocabulary term in
+  # the signal text, or a CPV crosswalk hit.
+  require_taxonomy_corroboration: true
+
+# ---- Collaboration workflow (FR-25, §4.10).
+workflow:
+  # Points of difference between an external score and the role whose job it is
+  # to know better, above which a review is triggered (§4.10 model C:
+  # "divergence ... is surfaced as a review trigger").
+  divergence_threshold: 30.0
+  min_assessments_for_conviction: 1
+  # §4.10's named weakness of the stage gate is latency — "a topic can die
+  # waiting for a stage owner". Past this, the topic is flagged as stalled.
+  stale_in_stage_days: 30
+  # How much team conviction moves a topic in the per-role RANKING only.
+  # SC-14: internal data adjusts but does not replace external discovery, and
+  # SC-12 forbids folding it into a published score — so it never touches
+  # attractiveness or right-to-win.
+  conviction_ranking_weight: 0.25
+
+# ---- Competitive intensity (§4.3.3 "award notices reveal who is winning").
+competition:
+  # The intensity score is computed from the competitor register, not judged:
+  # each competitor matched to a topic contributes its type weight, doubled when
+  # the corpus actually mentions it in that topic's evidence rather than merely
+  # implying it structurally.
+  evidenced_multiplier: 2.0
+  # How specifically a competitor matches this space. The spread is deliberately
+  # wide: "sells this exact technology" is a competitive fact, while "operates
+  # somewhere in cybersecurity" is true of most of the register and must not be
+  # allowed to make every security topic read HIGH.
+  match_weights:
+    technology: 1.0
+    vertical: 0.4
+    domain: 0.15
+  # Score bands over the LISTED competitors. One specialist selling this exact
+  # technology contributes about 1.0 structurally and about 2.0 when the corpus
+  # names it, so the thresholds read as "how many players of substance":
+  #   none    nothing in the register plausibly plays here
+  #   low     one or two adjacent players
+  #   medium  three to five, at least one the customer already knows
+  #   high    a crowded field with heavyweights visible in the evidence
+  bands:
+    none: 0.0
+    low: 1.0
+    medium: 3.0
+    high: 7.5
+  # Competitors listed per topic. Beyond this the list stops being a briefing
+  # and starts being a directory.
+  max_listed: 8
+
+# ---- Long-form descriptions and briefs (FR-14, FR-18).
+description:
+  # One model call per topic whose version has moved. A synthesis round bumps
+  # most versions, so an uncapped stage would spend hundreds of calls on a
+  # routine refresh without anyone asking for it. NFR-10 makes inference cost a
+  # reported quantity, and §4.12's rule applies to the cap itself: what was left
+  # ungenerated is logged, never silently dropped.
+  max_per_refresh: 40
+  # Topics described concurrently. Each is one independent call.
+  max_parallel: 4
+
+# ---- Serving (FR-21, AC-05, NFR-09).
+serving:
+  max_topics_per_view: 24
+  # Randomised exploration slot to counter exposure bias (§4.7.6).
+  exploration_slot_size: 2
+
+# ---- Ingestion guards (DR-08, NFR-07).
+ingestion:
+  user_agent: "OrangeInnovationRadar/0.1 (research prototype; contact configured in .env)"
+  request_timeout_seconds: 45
+  max_retries: 3
+  retry_backoff_seconds: 5
+  # Stored extract length. Storage is by reference plus short extract, never a
+  # full mirror of source content (DR-08).
+  max_extract_chars: 1200
+  # Retain raw archives so the pipeline can be replayed as of a past date
+  # without re-fetching (DR-14, FR-35).
+  archive_raw: true
+  # Sources are independent and network-bound, so they are fetched concurrently.
+  # Database writes stay serial (see Ingestor.collect). Raising this past ~8
+  # buys little: the slowest single source, not the sum, sets the floor.
+  max_parallel_sources: 8
+
+llm:
+  temperature_synthesis: 0.85   # over-produce deliberately (§4.4.3)
+  temperature_critic: 0.10
+  temperature_classify: 0.0
+  max_retries: 2
+  # Requests per batch for the cheap classification stages.
+  classify_batch_size: 12
+  # Clusters synthesised concurrently. Each cluster issues candidates_per_cluster
+  # generation calls plus a critic and entailment call per candidate, so this
+  # multiplies into real concurrency against the provider — raise with care.
+  max_parallel_clusters: 4

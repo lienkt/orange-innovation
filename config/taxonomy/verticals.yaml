@@ -1,0 +1,168 @@
+# Customer verticals — fixed by the briefing deck (Table 7, §3.3).
+# These are a CONTROLLED VOCABULARY: the LLM may emit only these ids (§4.4.2).
+# `nace` lists NACE Rev.2 divisions for bottom-up sizing (LK-02, DR-12).
+# `story_labels` maps to the 12 industry labels of the published customer-story
+# corpus, which do not map one-to-one onto the 15 verticals (LK-03).
+version: "2026-08-a"
+owner: "taxonomy-curator"
+items:
+  - id: manufacturing
+    label: Manufacturing
+    definition: >-
+      Discrete and process manufacturing, including heavy industry, consumer
+      goods, chemicals, forestry and paper.
+    synonyms: [industry, industrial, factory, plant, process industry, CPG, FMCG]
+    exclusions: [automotive, aerospace_defense]
+    nace: ["10", "11", "13", "16", "17", "20", "22", "23", "24", "25", "27", "28"]
+    story_labels: [Manufacturing]
+    privileged: false
+
+  - id: retail
+    label: Retail
+    definition: Physical and online retail, wholesale-to-consumer chains, grocery, specialty.
+    synonyms: [commerce, e-commerce, stores, shops, distribution]
+    exclusions: [wholesale]
+    nace: ["45", "47"]
+    story_labels: [Retail]
+    privileged: false
+
+  - id: financial_services
+    label: Finance, Banking and Insurance
+    definition: Retail and corporate banking, insurance, asset management, payments.
+    synonyms: [banking, insurance, fintech, insurtech, BFSI, financial institutions]
+    exclusions: []
+    nace: ["64", "65", "66"]
+    story_labels: ["Bank & insurance"]
+    privileged: false
+
+  - id: public_sector
+    label: Public / Government sector
+    definition: Central and local government, agencies, education, citizen services.
+    synonyms: [government, public administration, municipality, state, civil service, govtech]
+    exclusions: [defense, healthcare]
+    nace: ["84", "85"]
+    story_labels: ["Public sector"]
+    privileged: false
+
+  - id: defense
+    label: Defense
+    definition: >-
+      Armed forces, defense ministries and national security agencies as buyers.
+      Covered by the Defense & Security Division created in 2025 (§2.2).
+    synonyms: [military, armed forces, national security, MoD, NATO]
+    exclusions: [aerospace_defense, public_sector]
+    nace: ["84.22"]
+    story_labels: []
+    privileged: true
+    privileged_reason: "Defense & Security Division, 250+ defense experts (§2.2)"
+
+  - id: automotive
+    label: Automotive
+    definition: Vehicle manufacturers, tier-1/2 suppliers, mobility service operators.
+    synonyms: [car makers, OEM, mobility, connected car, EV]
+    exclusions: [transport_logistics]
+    nace: ["29"]
+    story_labels: [Automotive]
+    privileged: false
+
+  - id: transport_logistics
+    label: Transportation and Logistics
+    definition: Rail, road freight, shipping, ports, airports, postal and parcel, 3PL.
+    synonyms: [logistics, freight, supply chain operators, shipping, rail, ports, airlines]
+    exclusions: [automotive]
+    nace: ["49", "50", "51", "52", "53"]
+    story_labels: [Transport]
+    privileged: false
+
+  - id: construction
+    label: Construction
+    definition: Construction, civil engineering, building materials, real estate development.
+    synonyms: [building, civil engineering, infrastructure works, real estate, property]
+    exclusions: []
+    nace: ["41", "42", "43", "68"]
+    story_labels: ["Real estate"]
+    privileged: false
+
+  - id: life_sciences
+    label: Life sciences
+    definition: Pharmaceuticals, biotechnology, medical devices, clinical research.
+    synonyms: [pharma, biotech, medtech, medical devices, clinical trials]
+    exclusions: [healthcare]
+    nace: ["21", "26.6", "72.11"]
+    story_labels: []
+    privileged: false
+
+  - id: energy
+    label: Energy
+    definition: Power generation, transmission and distribution, utilities, renewables, oil and gas.
+    synonyms: [utilities, power, grid, electricity, renewables, oil and gas, DSO, TSO]
+    exclusions: [natural_resources]
+    nace: ["35"]
+    story_labels: ["Resources and energy"]
+    privileged: false
+
+  - id: wholesale
+    label: Wholesale
+    definition: >-
+      Business-to-business distribution and trade, including telecom wholesale
+      (carrier-to-carrier services).
+    synonyms: [distribution, B2B trade, carrier services, wholesale telecom]
+    exclusions: [retail]
+    nace: ["46"]
+    story_labels: []
+    privileged: false
+
+  - id: media_entertainment
+    label: Media and entertainment
+    definition: Broadcasting, publishing, streaming, gaming, live events, sport.
+    synonyms: [broadcast, publishing, streaming, gaming, esports, entertainment]
+    exclusions: []
+    nace: ["58", "59", "60", "90", "93"]
+    story_labels: ["Media & gaming"]
+    privileged: false
+
+  - id: healthcare
+    label: Healthcare
+    definition: >-
+      Hospitals, clinics, care providers, health insurers and health authorities.
+      Covered by the Health Division built on Enovacom/Enovalife (§2.2).
+    synonyms: [hospital, clinical, care providers, health system, e-health, HDS]
+    exclusions: [life_sciences]
+    nace: ["86", "87"]
+    story_labels: [Health]
+    privileged: true
+    privileged_reason: "Health Division, 3,000+ healthcare customers, HDS/SecNumCloud stack (§2.2)"
+
+  - id: natural_resources
+    label: Natural resources
+    definition: Mining, quarrying, metals, water, forestry as extraction and primary processing.
+    synonyms: [mining, extraction, metals, water utilities, quarrying]
+    exclusions: [energy, manufacturing]
+    nace: ["05", "06", "07", "08", "09", "36", "37"]
+    story_labels: ["Resources and energy"]
+    privileged: false
+
+  - id: aerospace_defense
+    label: Aerospace and defense industry
+    definition: >-
+      Aerospace manufacturers, space operators and the defense industrial base
+      as suppliers (distinct from `defense`, which is the buyer side).
+    synonyms: [aerospace, space, satellite, defense industry, A&D primes]
+    exclusions: [defense, automotive]
+    nace: ["30.3", "51.22"]
+    story_labels: []
+    privileged: true
+    privileged_reason: "Adjacent to the Defense & Security Division (§2.2)"
+
+# Verticals present in the customer-story corpus that span several radar
+# verticals. Reference-density counts are apportioned via these weights (LK-03).
+story_label_reconciliation:
+  "Technology & business services":
+    note: "Cross-vertical; not a radar vertical. Counted as ecosystem evidence, not vertical evidence."
+    apportion: {}
+  "Tourism and personal services":
+    note: "No dedicated radar vertical; nearest fit is retail."
+    apportion: {retail: 1.0}
+  "Resources and energy":
+    note: "Split across energy and natural_resources."
+    apportion: {energy: 0.6, natural_resources: 0.4}

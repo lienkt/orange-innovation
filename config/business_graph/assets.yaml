@@ -1,0 +1,268 @@
+# Orange Business Graph — partners, certifications, analyst positions,
+# capability pools and research assets (Table 24, LK-01, DR-06).
+# SOURCE: requirements document §2.1, §2.2, §2.5, §2.8.
+version: "2026-08-a"
+owner: "business-graph-curator"
+as_of: "2026-08-17"
+source: "Orange_Innovation_Radar_Requirements_and_Approach.docx §2.1, §2.2, §2.5, §2.8"
+
+# ---------------------------------------------------------------------------
+# Partners. `tier` is an EDGE property (§4.5.1) and decays — LK-07 re-validates
+# these on the internal-catalogue refresh cycle because partner tiers change.
+# tier_rank normalises heterogeneous vendor tier names onto a 0-1 scale so
+# partner coverage is computable across vendors.
+# ---------------------------------------------------------------------------
+partner_tier_ranks:
+  diamond: 1.00
+  elite: 0.95
+  premier: 0.90
+  "global gold": 0.90
+  platinum: 0.85
+  gold: 0.80
+  advanced: 0.70
+  msp: 0.70
+  registered: 0.40
+  unspecified: 0.50
+
+partners:
+  - id: palo_alto_networks
+    label: Palo Alto Networks
+    tier: diamond
+    tier_note: "Diamond; #1 EMEA partner"
+    provides_technologies: [sase, zero_trust_architecture, siem_soar]
+    domains: [cybersecurity]
+
+  - id: microsoft
+    label: Microsoft
+    tier: gold
+    tier_note: "Gold MAICPP; Partner of the Year"
+    provides_technologies: [generative_ai, cloud_data_platform, containers_kubernetes, mlops_platform, agentic_ai]
+    domains: [cloud, ex_employee_experience]
+
+  - id: cisco
+    label: Cisco
+    tier: "global gold"
+    provides_technologies: [sd_wan, sase, wifi6e_7, observability_aiops]
+    domains: [connectivity_solutions, cybersecurity]
+
+  - id: aws
+    label: AWS
+    tier: advanced
+    tier_note: "Advanced Partner; MSP"
+    provides_technologies: [cloud_data_platform, containers_kubernetes, machine_learning, mlops_platform]
+    domains: [cloud]
+
+  - id: google_cloud
+    label: Google Cloud
+    tier: premier
+    provides_technologies: [cloud_data_platform, machine_learning, generative_ai, mlops_platform]
+    domains: [cloud]
+
+  - id: servicenow
+    label: ServiceNow
+    tier: elite
+    provides_technologies: [process_mining, observability_aiops, api_integration_platform]
+    domains: [ex_employee_experience, cloud]
+
+  - id: genesys
+    label: Genesys
+    tier: elite
+    provides_technologies: [nlp_speech, agentic_ai]
+    domains: [cx_customer_experience]
+
+  - id: nice
+    label: NiCE
+    tier: platinum
+    provides_technologies: [nlp_speech, machine_learning]
+    domains: [cx_customer_experience]
+
+  - id: fortinet
+    label: Fortinet
+    tier: unspecified
+    provides_technologies: [sase, zero_trust_architecture]
+    domains: [cybersecurity]
+
+  - id: zscaler
+    label: Zscaler
+    tier: unspecified
+    provides_technologies: [sase, zero_trust_architecture]
+    domains: [cybersecurity]
+
+  - id: nvidia
+    label: NVIDIA
+    tier: unspecified
+    provides_technologies: [machine_learning, generative_ai, computer_vision, edge_computing]
+    domains: [cloud, ox_smart_industries]
+
+  - id: dell
+    label: Dell
+    tier: unspecified
+    provides_technologies: [edge_computing, containers_kubernetes]
+    domains: [cloud]
+
+  - id: hpe
+    label: HPE
+    tier: unspecified
+    provides_technologies: [edge_computing, containers_kubernetes, wifi6e_7]
+    domains: [cloud, connectivity_solutions]
+
+  - id: samsung
+    label: Samsung
+    tier: unspecified
+    provides_technologies: [private_5g, 5g_ran_oran]
+    domains: [connectivity_solutions]
+
+  - id: huawei
+    label: Huawei
+    tier: unspecified
+    provides_technologies: [5g_ran_oran, private_5g]
+    domains: [connectivity_solutions]
+
+# ---------------------------------------------------------------------------
+# Certifications. `required_by` drives compliance fit: a certification is
+# REQUIRED_BY a vertical in a geography (§4.5.1).
+# ---------------------------------------------------------------------------
+certifications:
+  - id: iso_27001
+    label: ISO 27001
+    required_by_verticals: [financial_services, public_sector, healthcare, defense, manufacturing, energy]
+    geographies: [EU, GLOBAL]
+  - id: soc2_type2
+    label: SOC 2 Type II
+    required_by_verticals: [financial_services, media_entertainment, wholesale]
+    geographies: [GLOBAL]
+  - id: secnumcloud
+    label: SecNumCloud
+    required_by_verticals: [public_sector, defense, healthcare, energy]
+    geographies: [FR]
+    sovereign: true
+  - id: hds
+    label: HDS (Hébergeur de Données de Santé)
+    required_by_verticals: [healthcare, life_sciences]
+    geographies: [FR]
+    sovereign: true
+  - id: tisax
+    label: TISAX
+    required_by_verticals: [automotive, manufacturing]
+    geographies: [EU, DE]
+  - id: cispe
+    label: CISPE
+    required_by_verticals: [public_sector, financial_services]
+    geographies: [EU]
+    sovereign: true
+
+# ---------------------------------------------------------------------------
+# Analyst positions (§2.8). 158 analyst publications in 2025; named a leader in
+# 56 reports. Only the named positions are modelled as nodes.
+# ---------------------------------------------------------------------------
+analyst_positions:
+  - id: gartner_mq_private_5g_2026_leader
+    label: Gartner Magic Quadrant 2026 — 4G and 5G Private Mobile Network Services (Leader)
+    analyst: Gartner
+    year: 2026
+    position: leader
+    technologies: [private_5g, 5g_ran_oran]
+    domains: [connectivity_solutions]
+    use_cases: [private_network_deployment]
+
+  - id: gartner_global_wan_services_leader
+    label: Leader — Global WAN Services
+    analyst: Gartner
+    position: leader
+    technologies: [sd_wan]
+    domains: [connectivity_solutions]
+    use_cases: [site_connectivity_resilience]
+
+  - id: globaldata_2025_global_enterprise
+    label: GlobalData 2025 Company Assessment — Global Enterprise
+    analyst: GlobalData
+    year: 2025
+    position: leader
+    technologies: []
+    domains: [connectivity_solutions, cloud, cybersecurity]
+    use_cases: []
+
+analyst_summary:
+  publications_2025: 158
+  leader_mentions: 56
+
+# ---------------------------------------------------------------------------
+# Capability pools (§2.2, §2.5). A capability pool STAFFS a domain.
+# These are the "capability depth" input to right-to-win.
+# ---------------------------------------------------------------------------
+capability_pools:
+  - id: ai_data_cloud_experts
+    label: AI / Data / Cloud experts
+    headcount: 7000
+    staffs_domains: [cloud, cx_customer_experience, ex_employee_experience]
+    technologies: [machine_learning, generative_ai, cloud_data_platform, mlops_platform, agentic_ai, rag_vector_search]
+  - id: cyber_experts
+    label: Cybersecurity experts
+    headcount: 3100
+    staffs_domains: [cybersecurity]
+    technologies: [siem_soar, zero_trust_architecture, sase, post_quantum_cryptography]
+  - id: iot_experts
+    label: IoT experts
+    headcount: 400
+    staffs_domains: [ox_smart_industries, connectivity_solutions]
+    technologies: [iot_platform, lpwan, low_power_sensors]
+  - id: digital_experts
+    label: Digital experts
+    headcount: 10000
+    staffs_domains: [cloud, cx_customer_experience, ex_employee_experience, connectivity_solutions]
+    technologies: []
+  - id: defense_experts
+    label: Defense and security experts
+    headcount: 250
+    staffs_domains: [cybersecurity, connectivity_solutions]
+    verticals: [defense, aerospace_defense]
+    technologies: [private_5g, satellite_ntn, post_quantum_cryptography]
+    note: "Defense & Security Division, created 2025. Plus 100+ cyber experts dedicated to these clients and 60+ researchers on defense-related programmes."
+  - id: health_experts
+    label: Healthcare experts
+    headcount: 1000
+    staffs_domains: [cloud]
+    verticals: [healthcare, life_sciences]
+    technologies: [sovereign_cloud, api_integration_platform]
+    note: "Health Division on Enovacom/Enovalife; 3,000+ healthcare customers; direct access to Future4Care startups."
+  - id: group_researchers
+    label: Orange Group researchers
+    headcount: 700
+    staffs_domains: [cloud, connectivity_solutions, cybersecurity, ox_smart_industries]
+    technologies: []
+    note: "Plus 120 PhD students (§2.1)."
+
+# ---------------------------------------------------------------------------
+# Research assets (§2.5). Orange's own research and patent activity is a leading
+# indicator that precedes market signals by years, and a far stronger
+# right-to-win statement than a CRM overlap count (§2.5).
+#
+# The MVP models this at portfolio level only. Per-technology patent counts
+# require the `patents` connector, which is deferred (config/sources.yaml).
+# ---------------------------------------------------------------------------
+research_assets:
+  patents_total: 11000
+  patents_note: "Largest portfolio among European telecom operators; licensed to 2,000+ companies; 192 new inventions patented in 2024."
+  cooperative_research_projects: 65
+  academic_industrial_partnerships: 150
+  orange_fab_accelerators: 22
+  startups_supported: 1000
+  ventures_note: "Orange Ventures has re-aligned its investment thesis to Trust the future. ZEBOX accelerator agreement signed April 2026."
+  # Technologies where the technology vocabulary records orange_asset: true are
+  # treated as having a research/portfolio prior until the patent connector runs.
+
+# ---------------------------------------------------------------------------
+# Group-level scale reference (§2.1, Table 2). Used to judge materiality, never
+# as a scoring input.
+# ---------------------------------------------------------------------------
+scale_reference:
+  group_revenue_2025_eur_bn: 40.4
+  ob_revenue_2025_eur_bn: 7.3
+  ob_employees: 30000
+  ob_b2b_customers: 40000
+  countries_covered: 200
+  countries_with_teams: 65
+  data_centres: 70
+  socs: 18
+  cybersocs: 15
+  cyberdefense_growth_2025_pct: 6.8

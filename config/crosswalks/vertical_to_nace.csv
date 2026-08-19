@@ -1,0 +1,75 @@
+# Crosswalk: radar vertical -> NACE Rev. 2 (LK-02, DR-12, §4.3.4).
+#
+# Two target columns, because the two Eurostat families publish at different
+# granularities:
+#   sbs_nace  — Structural Business Statistics, available at division level
+#               (C10, G47, H49...). This is the enterprise-count denominator.
+#   ict_nace  — the enterprise ICT survey, published on its own aggregates
+#               (C19-C23, C29_C30, H, J...). This is the adoption rate.
+#
+# One row per SBS division, each carrying the ICT aggregate that contains it, so
+# the adoption rate applied to each slice of the denominator is the one Eurostat
+# actually published for that slice.
+#
+# §4.5.2: "every downstream number — market size, procurement volume, reference
+# density, patent coverage — inherits this table's errors", so `confidence` is
+# per row and is applied as a multiplier, never dropped.
+#
+# Two structural gaps are recorded rather than papered over:
+#   * The enterprise ICT survey EXCLUDES the financial sector (K), public
+#     administration (O), health (Q) and mining (B). Rows in those verticals
+#     carry ict_nace = C10-S951_X_K, the all-activities aggregate, at reduced
+#     confidence — a declared proxy, flagged in the UI and in the brief.
+#   * SBS covers the business economy only, so NACE O84 (public administration
+#     and defence) has no enterprise count at all. public_sector and defense
+#     carry no SBS row: those verticals are sized from observed procurement
+#     instead, which for a public buyer is the better evidence anyway (§4.3.3).
+#
+version,vertical,sbs_nace,ict_nace,confidence,owner,note
+2026-08-a,manufacturing,C10,C10-C12,1.0,innovation-radar-curator,Food products
+2026-08-a,manufacturing,C11,C10-C12,1.0,innovation-radar-curator,Beverages
+2026-08-a,manufacturing,C13,C13-C15,1.0,innovation-radar-curator,Textiles
+2026-08-a,manufacturing,C16,C16-C18,1.0,innovation-radar-curator,Wood
+2026-08-a,manufacturing,C17,C16-C18,1.0,innovation-radar-curator,Paper
+2026-08-a,manufacturing,C20,C19-C23,1.0,innovation-radar-curator,Chemicals
+2026-08-a,manufacturing,C22,C22_C23,1.0,innovation-radar-curator,Rubber and plastics
+2026-08-a,manufacturing,C23,C22_C23,1.0,innovation-radar-curator,Non-metallic minerals
+2026-08-a,manufacturing,C24,C24_C25,1.0,innovation-radar-curator,Basic metals
+2026-08-a,manufacturing,C25,C24_C25,1.0,innovation-radar-curator,Fabricated metal
+2026-08-a,manufacturing,C27,C27_C28,1.0,innovation-radar-curator,Electrical equipment
+2026-08-a,manufacturing,C28,C27_C28,1.0,innovation-radar-curator,Machinery
+2026-08-a,retail,G45,G45,0.6,innovation-radar-curator,Motor trade — shared with automotive retail
+2026-08-a,retail,G47,G47,1.0,innovation-radar-curator,Retail trade
+2026-08-a,wholesale,G46,G46,1.0,innovation-radar-curator,Wholesale trade
+2026-08-a,financial_services,K64,C10-S951_X_K,0.5,innovation-radar-curator,PROXY — ICT survey excludes the financial sector
+2026-08-a,financial_services,K65,C10-S951_X_K,0.5,innovation-radar-curator,PROXY — insurance and pension funding
+2026-08-a,financial_services,K66,C10-S951_X_K,0.5,innovation-radar-curator,PROXY — auxiliary financial activities
+2026-08-a,automotive,C29,C29_C30,1.0,innovation-radar-curator,Motor vehicles
+2026-08-a,transport_logistics,H49,H,1.0,innovation-radar-curator,Land transport
+2026-08-a,transport_logistics,H50,H,1.0,innovation-radar-curator,Water transport
+2026-08-a,transport_logistics,H51,H,1.0,innovation-radar-curator,Air transport
+2026-08-a,transport_logistics,H52,H,1.0,innovation-radar-curator,Warehousing
+2026-08-a,transport_logistics,H53,H,1.0,innovation-radar-curator,Postal and courier
+2026-08-a,construction,F41,F,1.0,innovation-radar-curator,Building construction
+2026-08-a,construction,F42,F,1.0,innovation-radar-curator,Civil engineering
+2026-08-a,construction,F43,F,1.0,innovation-radar-curator,Specialised construction
+2026-08-a,construction,L68,L68,0.7,innovation-radar-curator,Real estate — smart building buyers
+2026-08-a,life_sciences,C21,C21,1.0,innovation-radar-curator,Pharmaceuticals
+2026-08-a,life_sciences,M72,M72,0.8,innovation-radar-curator,Scientific R&D
+2026-08-a,energy,D35,D35,1.0,innovation-radar-curator,Electricity and gas
+2026-08-a,media_entertainment,J58,J58-J60,1.0,innovation-radar-curator,Publishing
+2026-08-a,media_entertainment,J59,J58-J60,1.0,innovation-radar-curator,Film and music
+2026-08-a,media_entertainment,J60,J58-J60,1.0,innovation-radar-curator,Broadcasting
+2026-08-a,media_entertainment,R90,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — arts not covered by the ICT survey
+2026-08-a,media_entertainment,R93,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — sports and recreation
+2026-08-a,healthcare,Q86,C10-S951_X_K,0.5,innovation-radar-curator,PROXY — ICT survey excludes health activities
+2026-08-a,healthcare,Q87,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — residential care
+2026-08-a,natural_resources,B05,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — ICT survey excludes mining
+2026-08-a,natural_resources,B06,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — oil and gas extraction
+2026-08-a,natural_resources,B07,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — metal ores
+2026-08-a,natural_resources,B08,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — other mining
+2026-08-a,natural_resources,B09,C10-S951_X_K,0.4,innovation-radar-curator,PROXY — mining support
+2026-08-a,natural_resources,E36,E,1.0,innovation-radar-curator,Water collection and supply
+2026-08-a,natural_resources,E37,E,1.0,innovation-radar-curator,Sewerage
+2026-08-a,natural_resources,E38,E,1.0,innovation-radar-curator,Waste management
+2026-08-a,aerospace_defense,C30,C29_C30,1.0,innovation-radar-curator,Other transport equipment incl. aerospace

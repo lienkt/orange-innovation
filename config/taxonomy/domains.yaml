@@ -1,0 +1,80 @@
+# Business domains — fixed by the briefing deck (Table 7).
+# `value_propositions` is the explicit mapping to the four strategic value
+# propositions of the corporate deck, required by §2.2 so that a topic can be
+# routed to an offer owner.
+version: "2026-08-a"
+owner: "taxonomy-curator"
+
+value_propositions:
+  - id: vp_customer_experience
+    label: Customer Experience
+  - id: vp_employee_experience
+    label: Employee Experience
+  - id: vp_operational_experience
+    label: Operational Experience
+  - id: vp_digital_infrastructure
+    label: Digital Infrastructure
+
+items:
+  - id: ox_smart_industries
+    label: "OX: Smart Industries"
+    definition: >-
+      Industrial and operational digitalisation: connected operations, industrial
+      IoT, private networks for industry, safety and quality on the shop floor.
+    synonyms: [industry 4.0, smart factory, industrial IoT, connected operations, OT]
+    value_propositions: [vp_operational_experience]
+
+  - id: connectivity_solutions
+    label: Connectivity Solutions
+    definition: >-
+      Enterprise networking: WAN, SD-WAN, private mobile networks, satellite,
+      network-as-a-service, IoT connectivity, voice.
+    synonyms: [network, WAN, SD-WAN, private 5G, NaaS, connectivity, SASE transport]
+    value_propositions: [vp_digital_infrastructure]
+
+  - id: cybersecurity
+    label: Cybersecurity
+    definition: >-
+      Detection and response, managed security services, identity, OT security,
+      compliance-driven security, cyberdefence.
+    synonyms: [security, cyberdefence, SOC, MDR, zero trust, NIS2, DORA]
+    value_propositions: [vp_digital_infrastructure, vp_operational_experience]
+
+  - id: cloud
+    label: Cloud
+    definition: >-
+      Public, private, sovereign and edge cloud, data platforms, AI platforms,
+      workload modernisation.
+    synonyms: [cloud, hybrid cloud, sovereign cloud, edge, data platform, AI platform]
+    value_propositions: [vp_digital_infrastructure]
+
+  - id: cx_customer_experience
+    label: "CX: Customer Experience"
+    definition: >-
+      Contact centre, conversational and agentic AI for customers, omnichannel
+      journeys, customer data and personalisation.
+    synonyms: [contact center, CCaaS, conversational AI, customer journey, CRM experience]
+    value_propositions: [vp_customer_experience]
+
+  - id: ex_employee_experience
+    label: "EX: Employee Experience"
+    definition: >-
+      Digital workplace, collaboration, employee-facing AI assistants, workplace
+      mobility and device management.
+    synonyms: [digital workplace, collaboration, UCaaS, employee assistant, modern work]
+    value_propositions: [vp_employee_experience]
+
+# Cross-cutting axis, not a domain (§2.9 consequence 2). A topic deliverable on
+# sovereign infrastructure is worth more to Orange than the same topic delivered
+# generically; scoring reads this flag explicitly.
+cross_cutting:
+  - id: trust_sovereignty
+    label: Trust, sovereignty and compliance
+    definition: >-
+      Sovereign hosting, data residency, certification-bound delivery, post-quantum
+      readiness, auditability. Applies across all six domains.
+    markers: [sovereign, SecNumCloud, HDS, data residency, post-quantum, sovereignty, EUCS, confidential computing]
+  - id: sustainability
+    label: Sustainability
+    definition: Energy and carbon reduction, circularity, environmental reporting.
+    markers: [carbon, energy efficiency, circular, CSRD, ecodesign, net zero]
