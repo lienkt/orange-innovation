@@ -756,7 +756,7 @@ and the built React bundle from the same origin, which is what the CORS list in
 | Resource group | `rg-railpulse-cloud` |
 | Region | France Central |
 | Plan / app | `plan-railpulse-cdb4ce` (F1, Linux, shared) / `web-orange-radar-1521f5` |
-| Runtime | Python 3.13, `bash startup.sh` → gunicorn + uvicorn worker |
+| Runtime | Python 3.13, `python3 -m uvicorn main:app` (no script, no absolute paths — see below) |
 
 Three deployment decisions worth recording, because each is a constraint someone
 will otherwise rediscover:
@@ -796,6 +796,43 @@ the design changed to make it impossible:
 * `api.py` no longer dies when the database is unusable. It records the error
   and `/healthz` answers **503 with the reason**, so a bad deployment describes
   itself over HTTPS instead of disappearing.
+**What a redeploy replaces, and what it never touches.** The database is seeded
+onto `/home` once and then *not* replaced, so a deployment cannot discard the
+feedback and workflow decisions production accumulated. That protection is right,
+and taken alone it is also why 62 briefs once sat on disk that nobody could open:
+the PDFs shipped, the rows that make them visible did not. So `bootstrap` brings
+`CONTENT_TABLES` forward from the package — the topics themselves plus
+`topic_descriptions`, `topic_briefs`, `topic_competition` and `market_sizes`.
+
+Not unconditionally, and this is the part worth reading. An earlier version of
+this took those tables wholesale on the strength of a comment claiming the UI
+never writes them. That was false: `POST /api/topics/{id}/description|brief|
+market-size|competition` all write them, and the shipped UI has a **Regenerate**
+button wired to each. Taking them wholesale would have silently rolled back work
+a curator paid a model call for, and charged them to do it twice. Every row is
+therefore compared on its own timestamp and the newer one wins — the package is
+authoritative for content it refreshed, production for anything regenerated
+since. The PDFs follow the same rule from the other end: `content_hash` is the
+SHA-256 of the file a row was written for, so the row decides which PDF belongs
+on disk, and a brief regenerated in production is recognised and left alone.
+
+Topics travel *with* their content rather than being frozen, because
+`opportunity_spaces.version` is what `brief_for_topic` compares against: shipping
+new briefs against frozen topics flags every one of them "the topic has been
+refreshed since". They are taken wholesale — the pipeline is their only writer.
+`PRAGMA foreign_keys = OFF` is load-bearing here, not incidental: `INSERT OR
+REPLACE` is a delete followed by an insert, and these tables are the parents of
+`workflow_state` and `feedback` through `ON DELETE CASCADE`.
+
+The sync is keyed on a SHA-256 of the packaged database and skipped when it
+matches the marker in `/home/data/.content-fingerprint` — the container cold
+starts far more often than it is deployed — and the marker is written only when
+every table applied, so a partial sync is retried rather than recorded as done.
+It is wrapped in its own `except`: stale content is worth serving, a crash loop
+is not. `tests/test_bootstrap_sync.py` pins all of it, including the case that
+matters most — a curator regenerates a brief, the next deploy lands, and their
+work is still there.
+
 * Briefs are resolved by **filename against the configured directory**, not by
   the absolute path recorded in `topic_briefs.path`. That column records the
   machine that *built* the PDF — a laptop the server has never seen — so taken
@@ -829,7 +866,7 @@ plan was even stopped to "free a slot", which changed nothing: the F1 plan runs
 both apps side by side. It is not a resource limit — CPU sat at
 0% of its daily allowance throughout. `db.py` therefore takes
 `RADAR_SQLITE_JOURNAL_MODE` (default `WAL`, set to `DELETE` in App Service),
-`startup.sh` converts the seeded copy once, and it writes its own log to
+`radar.bootstrap` converts the seeded copy before its first write, and writes its own log to
 `/home/LogFiles/radar-startup.log`, which survives a container that does not.
 
 **What is not deployed.** The serving package carries no pipeline dependencies:
@@ -841,7 +878,7 @@ batch job against the same SQLite file; deploying is the publish step.
 
 **What persists.** `/home` is the only path that survives a restart or a
 redeploy on Linux App Service, so the database and generated briefs live in
-`/home/data`. `startup.sh` seeds it from the package on first boot and then
+`/home/data`. `radar.bootstrap` seeds it from the package on first boot and then
 leaves it alone — feedback, assessments, descriptions and briefs created in
 production are not thrown away by the next push. The replay archive
 (`raw_items`) is dropped from the serving copy: it exists so the pipeline can be

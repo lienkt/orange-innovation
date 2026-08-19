@@ -55,19 +55,29 @@ cp -R "$ROOT/src" "$ROOT/config" "$STAGE/"
 cp -R "$ROOT/frontend/dist" "$STAGE/frontend/dist"
 cp "$ROOT/main.py" "$ROOT/fallback_server.py" "$ROOT/.deployment" "$STAGE/"
 cp "$ROOT/requirements-azure.txt" "$STAGE/requirements.txt"
-cp "$ROOT"/data/briefs/*.pdf "$STAGE/data/briefs/" 2>/dev/null || true
+cp "$ROOT"/data/briefs/*.pdf "$STAGE/data/briefs/"   # unsilenced: the rows ship regardless,
+                                                    # so a missing PDF is a 404 in the UI
 find "$STAGE" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
 echo "==> trimming the serving database"
 python3 - "$ROOT/data/radar.db" "$STAGE/data/radar.db" <<'PY'
-import shutil, sqlite3, sys, pathlib
+import sqlite3, sys, pathlib
 src, dst = sys.argv[1], sys.argv[2]
-shutil.copy(src, dst)
+# VACUUM INTO, not a file copy: the source is in WAL, and copying the main file
+# alone leaves anything still in the -wal behind — which can ship the brief PDFs
+# without the rows that make them reachable.
+source = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
+source.execute("VACUUM INTO ?", (dst,))
+source.close()
 con = sqlite3.connect(dst)
 con.execute("PRAGMA foreign_keys = OFF")
 con.execute("UPDATE signals SET raw_item_id = NULL")
 con.execute("DELETE FROM raw_items")
-con.commit(); con.execute("VACUUM"); con.close()
+con.commit(); con.execute("VACUUM")
+# Ship it in the mode the server must use. /home is SMB, where WAL does not work,
+# and the first write now happens before bootstrap could convert it.
+con.execute("PRAGMA journal_mode = DELETE")
+con.close()
 print(f"    {pathlib.Path(src).stat().st_size/1048576:.1f} MB -> "
       f"{pathlib.Path(dst).stat().st_size/1048576:.1f} MB")
 PY

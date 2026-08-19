@@ -981,4 +981,7 @@ def brief_dir() -> Path:
     configured = os.getenv("RADAR_BRIEF_DIR")
     if configured:
         return Path(configured)
-    return Path(os.getenv("RADAR_DB_PATH", "data/radar.db")).parent / "briefs"
+    # Anchored the way Config.db_path is, so this and BriefBuilder.output_dir
+    # cannot disagree when the process runs from outside the repository root.
+    from .config import PROJECT_ROOT
+    return (PROJECT_ROOT / os.getenv("RADAR_DB_PATH", "data/radar.db")).parent / "briefs"

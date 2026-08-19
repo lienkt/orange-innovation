@@ -6,8 +6,8 @@ returns 403 — and so does Kudu, so the logs that would explain the original
 failure become unreadable until the quota resets an hour later. A crash loop
 therefore destroys its own evidence.
 
-This breaks that cycle. If gunicorn cannot start, `startup.sh` runs this
-instead: the container keeps answering on $PORT, so the platform never restarts
+This breaks that cycle. Point the app's startup command at this module
+instead of the server: the container keeps answering on $PORT, so the platform never restarts
 it, and the startup log is served over plain HTTPS where it can be read without
 Kudu. A deployment that fails visibly is worth far more than one that fails
 invisibly and takes the diagnostics with it.
