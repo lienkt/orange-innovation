@@ -1,4 +1,7 @@
-import type { BriefMeta, Competition, Coverage, FilterState, MarketSize, Meta, RadarView, Topic, TopicDescription } from './types'
+import type {
+  BriefMeta, Competition, Coverage, FilterState, GenerationConstraints, GenerationJob,
+  GenerationMatch, GenerationOptions, MarketSize, Meta, RadarView, Topic, TopicDescription,
+} from './types'
 
 const BASE = '/api'
 
@@ -15,11 +18,43 @@ async function get<T>(path: string, params?: Record<string, string | string[] | 
     const body = await res.text().catch(() => '')
     throw new Error(`${res.status} ${res.statusText} — ${body.slice(0, 200)}`)
   }
+  return parse<T>(res, path)
+}
+
+/** Read a JSON body, or say what arrived instead.
+ *
+ * The API serves the built frontend from the same origin, and unknown paths
+ * fall through to the app shell rather than 404ing — that is deliberate, so a
+ * client-side route survives a reload. The cost is that an /api path the SERVER
+ * does not know answers 200 with `<!doctype html>`, and the only symptom is
+ * `SyntaxError: Unexpected token '<'` from JSON.parse, which says nothing about
+ * the cause. In practice the cause is nearly always a server process older than
+ * the bundle it is serving, so that is what this says.
+ */
+async function parse<T>(res: Response, path: string): Promise<T> {
+  const type = res.headers.get('content-type') ?? ''
+  if (!type.includes('json')) {
+    const body = (await res.text().catch(() => '')).trimStart()
+    if (body.startsWith('<')) {
+      throw new Error(
+        `The API served the app shell for ${BASE}${path} instead of data, which means the running `
+        + 'server does not have that route. It is almost certainly running an older build than the '
+        + 'frontend — restart it (radar serve, or with --reload while developing).',
+      )
+    }
+    throw new Error(`${BASE}${path} answered with ${type || 'no content type'}, not JSON.`)
+  }
   return res.json() as Promise<T>
 }
 
-async function post<T>(path: string): Promise<T> {
-  const res = await fetch(BASE + path, { method: 'POST' })
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    ...(body === undefined ? {} : {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     // The API puts the real reason in `detail` — a model failure, a missing
@@ -28,7 +63,7 @@ async function post<T>(path: string): Promise<T> {
     try { message = JSON.parse(body).detail ?? message } catch { /* not JSON */ }
     throw new Error(message || `${res.status} ${res.statusText}`)
   }
-  return res.json() as Promise<T>
+  return parse<T>(res, path)
 }
 
 export const api = {
@@ -88,6 +123,39 @@ export const api = {
   coverage: () => get<Coverage>('/coverage'),
 
   orphanOffers: () => get<{ count: number; offers: { id: string; label: string }[] }>('/orphan-offers'),
+
+  /* --- generation (the Generate screen) ------------------------------------
+   * A run takes minutes, so it is started and then polled: an HTTP request held
+   * open for that long dies to a proxy timeout with the work half-done and no
+   * way to find out what happened. */
+
+  generationOptions: () => get<GenerationOptions>('/generate/options'),
+
+  /** What ALREADY exists inside the selected criteria. Not /view: that filters
+   *  by role first, and generation writes to the whole corpus. */
+  generationMatching: (c: GenerationConstraints) =>
+    get<GenerationMatch>('/generate/matching', {
+      vertical: c.verticals,
+      domain: c.domains,
+      geography: c.geographies,
+      horizon: c.horizons,
+    }),
+
+  startGeneration: (count: number, c: GenerationConstraints) =>
+    post<GenerationJob>('/generate', { count, ...c }),
+
+  /** One space from a written description. The text is a SEARCH BRIEF, not
+   *  evidence — the server retrieves the closest corroborated signals and those
+   *  become the only facts the model may cite. */
+  startGenerationFromBrief: (description: string) =>
+    post<GenerationJob>('/generate/brief', { description }),
+
+  generationJob: (id: string) => get<GenerationJob>(`/generate/${id}`),
+
+  generationJobs: () =>
+    get<{ active: string | null; jobs: GenerationJob[] }>('/generate/jobs'),
+
+  cancelGeneration: (id: string) => post<GenerationJob>(`/generate/${id}/cancel`),
 
   /** FR-23 / FR-34 / DR-15 — exposure context travels with every event. */
   feedback: (payload: {

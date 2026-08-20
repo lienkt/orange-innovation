@@ -353,3 +353,96 @@ export const EMPTY_FILTERS: FilterState = {
 /** Orderings the API offers beyond the role's own ranking function (FR-13). */
 export type SortId = 'rank' | 'market_size' | 'attractiveness' | 'right_to_win'
   | 'competition' | 'signals' | 'recent'
+
+/* -------------------------------------------------------------------------
+ * Generation (the Generate screen).
+ *
+ * Mirrors radar.generation. The one shape worth reading twice is
+ * GenerationConstraints: three of its four fields are ENFORCED server-side and
+ * `horizons` is not — §4.8 derives Now/Next/Later from the evidence after
+ * scoring, so a horizon filter steers which clusters are read and what the
+ * prompt looks for, and where the spaces actually land is reported afterwards.
+ * ---------------------------------------------------------------------- */
+
+export interface GenerationConstraints {
+  geographies: string[]
+  verticals: string[]
+  horizons: string[]
+  domains: string[]
+}
+
+export const EMPTY_CONSTRAINTS: GenerationConstraints = {
+  geographies: [], verticals: [], horizons: [], domains: [],
+}
+
+export function constraintCount(c: GenerationConstraints): number {
+  return c.geographies.length + c.verticals.length + c.horizons.length + c.domains.length
+}
+
+export interface GenerationOptions {
+  /** Read from the corpus, not from config — geography rides on signals (§2.6). */
+  geographies: { id: string; signals: number; spaces: number }[]
+  total_live: number
+  clusters: number
+  clustered_signals: number
+  ready: boolean
+  reason: string | null
+  max_per_run: number
+  min_brief_chars: number
+  max_brief_chars: number
+  /** Id of a run already in flight, if any — only one may proceed at a time. */
+  busy: string | null
+}
+
+export interface GenerationMatch {
+  filters: Record<string, string[]>
+  count: number
+  total_live: number
+  facets: Record<string, Record<string, number>>
+  truncated: boolean
+  topics: Topic[]
+}
+
+export interface GenerationStage {
+  id: string
+  label: string
+  done: boolean
+}
+
+export interface GenerationJob {
+  id: string
+  /** 0..1. Synthesis owns the first ~72%; inside it the value is the larger of
+   *  spaces-created-over-asked and evidence-read-over-budget, the second capped
+   *  below the full segment so reading clusters cannot render as a result. */
+  progress: number
+  round: number
+  /** What a "unit" counts differs by path — theme clusters read on the grid
+   *  path, generation passes on the free-text one — so the payload names it. */
+  units_total: number
+  units_done: number
+  unit_label: string
+  requested: number
+  /** `grid` covers the evidenced taxonomy grid; `brief` answers one written
+   *  description. They differ in what steers the model, not in what validates it. */
+  kind: 'grid' | 'brief'
+  brief: string | null
+  constraints: GenerationConstraints
+  constrained: boolean
+  status: 'queued' | 'running' | 'done' | 'error' | 'cancelled'
+  stage: string | null
+  stage_label: string | null
+  stages: GenerationStage[]
+  started_at: string
+  finished_at: string | null
+  refresh_id: string | null
+  created: number
+  created_ids: string[]
+  /** The spaces themselves, not just their ids — "what did it make" is the
+   *  question somebody who just generated five is actually asking. */
+  created_topics: Topic[]
+  updated: number
+  updated_ids: string[]
+  error: string | null
+  log: { at: string; message: string }[]
+  stats: Record<string, any>
+}

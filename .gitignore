@@ -3,13 +3,13 @@
 *.key
 
 # Data & artefacts
-#data/
-#!data/.gitkeep
-#*.db
-#*.sqlite3
-#*.duckdb
-#archive/
-#.cache/
+data/
+!data/.gitkeep
+*.db
+*.sqlite3
+*.duckdb
+archive/
+.cache/
 
 # Python
 __pycache__/

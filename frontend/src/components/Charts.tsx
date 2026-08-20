@@ -32,12 +32,19 @@ export function Kpi({ value, label, sub }: { value: string | number; label: stri
   )
 }
 
-export function ChartCard({ title, note, children, help, onHelp }: {
+export function ChartCard({ title, note, children, help, onHelp, wide = false }: {
   title: string; note?: string; children: React.ReactNode
   help?: string; onHelp?: (topic: string) => void
+  /** Take the whole row of the chart grid.
+   *
+   * For a chart whose width is structural rather than cosmetic: a bar list
+   * reads fine in a 330px column, a fifteen-by-six matrix does not, and the
+   * alternative to giving it the row is making the reader scroll sideways
+   * through its own columns. */
+  wide?: boolean
 }) {
   return (
-    <div className="chart-card">
+    <div className={`chart-card${wide ? ' chart-card-wide' : ''}`}>
       <h3 className="chart-title">
         {title}
         {help && onHelp && <HelpButton topic={help} onOpen={onHelp} />}
@@ -152,9 +159,15 @@ export function Heatmap({ grid, onSelect }: {
   const step = (count: number) => (count === 0 ? 'var(--grid)' : SEQ[stepIndex(count)])
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div>
+      {/* `minmax(0, 1fr)`, not a pixel floor. A floor plus `overflow-x: auto` is
+          how a grid ends up scrolling sideways inside a card that has room for
+          it: the columns refuse to shrink, so the container gives up instead.
+          Six columns of whatever is available always fits, and the row header
+          scales with the card rather than holding 116px on a phone. */}
       <div className="heat-grid"
-           style={{ gridTemplateColumns: `116px repeat(${grid.domains.length}, minmax(54px, 1fr))`, minWidth: 470 }}>
+           style={{ gridTemplateColumns:
+             `clamp(72px, 18%, 132px) repeat(${grid.domains.length}, minmax(0, 1fr))` }}>
         <div />
         {grid.domains.map((d) => (
           <div className="heat-head" key={d.id} title={d.label}>
@@ -162,13 +175,15 @@ export function Heatmap({ grid, onSelect }: {
                 these labels are long, so a single truncated string collides
                 with its neighbour and reads as noise. */}
             {d.label.replace(/^[A-Z]{2}:\s*/, '').split(' ').slice(0, 2).map((word, i) => (
-              <span key={i}>{word.slice(0, 9)}</span>
+              <span key={i}>{word}</span>
             ))}
           </div>
         ))}
         {grid.verticals.map((v) => (
           <>
-            <div className="heat-rowhead" key={`h-${v.id}`} title={v.label}>{v.label.slice(0, 18)}</div>
+            <div className="heat-rowhead" key={`h-${v.id}`} title={v.label}>
+              <span>{v.label}</span>
+            </div>
             {grid.domains.map((d) => {
               const cell = grid.cells[`${v.id}|${d.id}`]
               const n = cell?.count ?? 0

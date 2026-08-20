@@ -53,6 +53,26 @@ class ReadModel:
         context = self._bulk([r["id"] for r in rows])
         return [self._assemble(dict(r), context=context) for r in rows]
 
+    def topics_by_id(self, topic_ids: list[str]) -> list[dict[str, Any]]:
+        """Assemble a named set of topics, in the given order.
+
+        Distinct from `topics()`, which selects by lifecycle state: a freshly
+        synthesised space is `candidate` until scoring promotes it, so anything
+        wanting to show what a generation run just produced has to ask by id.
+        Goes through `_bulk` for the same reason `topics()` does — eleven queries
+        for the whole set rather than eleven per topic.
+        """
+        if not topic_ids:
+            return []
+        placeholders = ",".join("?" * len(topic_ids))
+        rows = {
+            r["id"]: r for r in self.db.query(
+                f"SELECT * FROM opportunity_spaces WHERE id IN ({placeholders})", tuple(topic_ids)
+            )
+        }
+        context = self._bulk(list(rows))
+        return [self._assemble(dict(rows[i]), context=context) for i in topic_ids if i in rows]
+
     def _bulk(self, topic_ids: list[str]) -> dict[str, Any]:
         """Everything `_assemble` needs for a list of topics, in eleven queries.
 
@@ -535,7 +555,8 @@ class ReadModel:
                         exploration.append(chosen)
 
         last_refresh = self.db.query_one(
-            "SELECT finished_at, started_at, reference_date FROM refreshes ORDER BY started_at DESC LIMIT 1"
+            "SELECT finished_at, started_at, reference_date FROM refreshes "
+            f"WHERE {NOT_A_GENERATION} ORDER BY started_at DESC LIMIT 1"
         )
         return {
             "role": role,
@@ -788,3 +809,35 @@ def _matches(topic: dict[str, Any], filters: dict[str, Any]) -> bool:
         if needle not in haystack:
             return False
     return True
+
+
+# ---------------------------------------------------------------------------
+# Public aliases.
+#
+# The generation endpoints have to filter, count and shape opportunity spaces
+# with EXACTLY the rules the radar view uses — including "no geography means
+# global" — or the "spaces that already match" count on the Generate screen
+# would mean something different from the same filter set on the radar. These
+# exist so that reuse is a stated contract rather than a private import.
+# ---------------------------------------------------------------------------
+
+#: Refresh ids are prefixed by what produced them: `R-` for a cadence run
+#: (`radar refresh` / `replay`), `G-` for an on-demand generation run. Both
+#: write scores and signal attachments, so both need a row in `refreshes`
+#: (NFR-04) — but only the first COLLECTED anything, and AC-02's freshness date
+#: is a claim about the evidence, not about the topic table. A generation run
+#: that stamped today over a corpus last collected six weeks ago would make the
+#: radar look fresh for having rearranged what it already had.
+GENERATION_ID_PREFIX = "G-"
+
+#: The freshness clause, as one string so the two places that ask cannot drift.
+NOT_A_GENERATION = f"id NOT LIKE '{GENERATION_ID_PREFIX}%'"
+
+
+def refresh_kind(refresh_id: str | None) -> str:
+    return "generation" if (refresh_id or "").startswith(GENERATION_ID_PREFIX) else "cadence"
+
+
+matches_filters = _matches
+topic_for_list = _for_list
+facet_counts = _facets

@@ -1,0 +1,586 @@
+"""On-demand, constrained generation of opportunity spaces (the Generate screen).
+
+`radar refresh` runs the whole seven-stage pipeline on a cadence (FR-19). This
+module runs the SYNTHESIS half of it on request, for a stated number of spaces,
+optionally bounded to a slice of the taxonomy — "give me five more in
+manufacturing, in France and Germany" — and reports what it did well enough that
+the answer is inspectable rather than magic.
+
+Three design points are worth stating, because each is a place where the
+convenient thing would have been wrong:
+
+1.  IT DOES NOT COLLECT. Collection, classification and clustering are the
+    cadence's job and they are slow and network-bound. This runs over the
+    clusters that already exist, which is also what makes the run bounded: the
+    evidence is fixed, so "the evidence does not support five more" is a real
+    and reachable answer (§4.1 — an empty answer is a valid one).
+
+2.  IT SCOPES THE DOWNSTREAM STAGES TO WHAT IT CREATED. A new space needs
+    enrichment, links, scores, an action, a size and a competitive read before
+    it is worth showing. Running those across the whole radar to serve five new
+    spaces would cost hundreds of model calls, so each stage is given the new
+    topic ids. Scoring is the exception that proves the rule: it normalises
+    against the whole corpus and only WRITES the subset (see ScoringEngine.run).
+
+3.  IT IS ONE AT A TIME. Synthesis writes opportunity spaces and the DR-03
+    identity rule is enforced by a unique index on the taxonomy triple; two
+    concurrent runs would race on it. A second request is refused with the id of
+    the run already in flight rather than queued silently.
+
+The run happens on a background thread and is polled, because it takes minutes
+and an HTTP request that takes minutes is a request that dies to a proxy
+timeout with the work half-done and no way to find out what happened.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import logging
+import threading
+import uuid
+from dataclasses import dataclass, field
+from typing import Any
+
+from .competition import CompetitionAnalyser
+from .config import Config
+from .db import Database, js
+from .embeddings import Embedder
+from .graph import Linker
+from .llm import LLMClient
+from .pipeline.actions import NextActionGenerator
+from .pipeline.enrich import Enricher
+from .pipeline.synthesis import GenerationConstraints, SynthesisProgress, Synthesiser
+from .scoring import ScoringEngine
+from .sizing import MarketSizer
+
+log = logging.getLogger(__name__)
+
+#: A ceiling on one request. Not a technical limit — a governance one: each
+#: space costs several model calls to synthesise and several more to finish, and
+#: an unbounded box on a screen is how someone types 500 and finds out what
+#: NFR-10 was measuring.
+MAX_PER_RUN = 25
+
+#: How much of the progress bar synthesis owns. It is the only model-bound
+#: stage that loops, and on a real run it is the overwhelming majority of the
+#: wall clock; giving the six finishing stages an equal seventh each would park
+#: the bar at 1/7 for minutes and then sprint.
+_SYNTHESIS_SHARE = 0.72
+
+#: The most of the synthesis segment that reading evidence alone may fill.
+#: Below 1 on purpose — see GenerationJob.progress.
+_EVIDENCE_CEILING = 0.85
+
+#: A written brief has to say enough to retrieve evidence with. Below this it
+#: matches half the corpus equally badly; above it, it is a document, not a
+#: description, and the embedding stops being about any one thing.
+MIN_BRIEF_CHARS = 40
+MAX_BRIEF_CHARS = 600
+
+#: Runs kept for inspection after they finish. The screen shows the last few so
+#: a reload does not lose the record of what was just generated.
+HISTORY_LIMIT = 20
+
+#: The stages a generated space passes through after synthesis, in order, with
+#: the label the screen shows. `describe` is deliberately NOT here: a long-form
+#: description is one more model call per space, the detail pane already
+#: generates it on demand (FR-14), and making it part of every run would double
+#: the cost of the cheap case to serve the occasional one.
+STAGE_LABELS: tuple[tuple[str, str], ...] = (
+    ("synthesise", "Synthesising candidates"),
+    ("enrich", "Attaching corroborating evidence"),
+    ("link", "Linking to the Orange Business Graph"),
+    ("score", "Scoring attractiveness and right to win"),
+    ("actions", "Writing the next action per role"),
+    ("size", "Sizing the market"),
+    ("competition", "Reading the competitive field"),
+)
+
+
+@dataclass
+class GenerationJob:
+    """One run, its progress, and everything it is prepared to say about itself."""
+
+    id: str
+    requested: int
+    constraints: GenerationConstraints
+    #: `grid` covers the evidenced taxonomy grid, bounded by the constraints.
+    #: `brief` answers one written description. They differ in what steers the
+    #: model, not in what validates it — both go through the same curation.
+    kind: str = "grid"
+    brief: str | None = None
+    status: str = "queued"          # queued | running | done | error | cancelled
+    stage: str | None = None
+    stages_done: list[str] = field(default_factory=list)
+    started_at: str = ""
+    finished_at: str | None = None
+    refresh_id: str | None = None
+    created_ids: list[str] = field(default_factory=list)
+    updated_ids: list[str] = field(default_factory=list)
+    error: str | None = None
+    log: list[dict[str, str]] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
+    #: Live synthesis position, so the screen can count spaces as they land
+    #: rather than only when the whole stage returns.
+    round: int = 0
+    units_total: int = 0
+    units_done: int = 0
+    unit_label: str = "theme cluster"
+    _cancel: threading.Event = field(default_factory=threading.Event, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    # -- progress reporting -------------------------------------------------
+
+    def say(self, message: str) -> None:
+        stamp = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+        with self._lock:
+            self.log.append({"at": stamp, "message": message})
+            # A synthesis round over a hundred clusters is chatty. The tail is
+            # what anyone reads, and an unbounded list on a long run is a slow
+            # memory leak in a process that is meant to stay up.
+            if len(self.log) > 400:
+                del self.log[:-300]
+        log.info("[%s] %s", self.id, message)
+
+    def cancel(self) -> None:
+        self._cancel.set()
+        self.say("Cancellation requested — the run stops after the work in flight.")
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancel.is_set()
+
+    def observe(self, progress: SynthesisProgress) -> None:
+        """Take a synthesis position. Called from the cluster pool, so it locks."""
+        with self._lock:
+            self.round = progress.round
+            self.units_total = progress.units_total
+            self.units_done = progress.units_done
+            self.unit_label = progress.unit_label
+            # Assigned rather than extended: the tick carries the cumulative
+            # list, so a replayed or out-of-order tick cannot double-count.
+            if len(progress.created) >= len(self.created_ids):
+                self.created_ids = list(progress.created)
+
+    @property
+    def progress(self) -> float:
+        """How far along, in 0..1, without claiming more than is true.
+
+        Synthesis owns the first `_SYNTHESIS_SHARE` of the bar because it is the
+        long pole — the six finishing stages together are a fraction of one
+        model-bound round. Inside it, the fraction is the larger of two honest
+        readings: spaces created against spaces asked for, and evidence read
+        against the evidence budget for this round. The second is CAPPED below
+        1, because reading every cluster is not the same as producing anything,
+        and a bar that reached the end on evidence alone would promise a result
+        the run may not have.
+        """
+        if self.status in ("done", "error", "cancelled"):
+            return 1.0
+        finishing = [key for key, _ in STAGE_LABELS if key != "synthesise"]
+        completed = sum(1 for key in finishing if key in self.stages_done)
+        if "synthesise" not in self.stages_done:
+            by_created = len(self.created_ids) / self.requested if self.requested else 0.0
+            by_evidence = (self.units_done / self.units_total) if self.units_total else 0.0
+            inner = max(min(1.0, by_created), min(_EVIDENCE_CEILING, by_evidence))
+            return round(_SYNTHESIS_SHARE * inner, 4)
+        return round(_SYNTHESIS_SHARE + (1 - _SYNTHESIS_SHARE) * (completed / len(finishing)), 4)
+
+    def as_dict(self) -> dict[str, Any]:
+        with self._lock:
+            tail = list(self.log[-80:])
+        return {
+            "id": self.id,
+            "progress": self.progress,
+            "round": self.round,
+            "kind": self.kind,
+            "brief": self.brief,
+            "units_total": self.units_total,
+            "units_done": self.units_done,
+            "unit_label": self.unit_label,
+            "requested": self.requested,
+            "constraints": self.constraints.as_dict(),
+            "constrained": bool(self.constraints),
+            "min_brief_chars": MIN_BRIEF_CHARS,
+            "max_brief_chars": MAX_BRIEF_CHARS,
+            "status": self.status,
+            "stage": self.stage,
+            "stage_label": dict(STAGE_LABELS).get(self.stage or "", self.stage),
+            "stages": [{"id": key, "label": label, "done": key in self.stages_done}
+                       for key, label in STAGE_LABELS],
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "refresh_id": self.refresh_id,
+            "created": len(self.created_ids),
+            "created_ids": self.created_ids,
+            "updated": len(self.updated_ids),
+            "updated_ids": self.updated_ids,
+            "error": self.error,
+            "log": tail,
+            "stats": self.stats,
+        }
+
+
+class GenerationService:
+    """Owns the single in-flight run and the recent history of finished ones."""
+
+    def __init__(self, cfg: Config, db: Database, embedder: Embedder | None = None):
+        self.cfg = cfg
+        self.db = db
+        self._embedder = embedder
+        self._jobs: dict[str, GenerationJob] = {}
+        self._order: list[str] = []
+        self._active: str | None = None
+        self._lock = threading.Lock()
+
+    # -- embedder ------------------------------------------------------------
+
+    def _get_embedder(self) -> Embedder:
+        """Loaded on first use and then kept.
+
+        The sentence-transformer model takes seconds to load and several hundred
+        megabytes to hold. Building it at import would pay that on every API
+        process whether or not anyone ever generates anything.
+        """
+        if self._embedder is None:
+            self._embedder = Embedder()
+        return self._embedder
+
+    # -- read side -----------------------------------------------------------
+
+    def active(self) -> GenerationJob | None:
+        with self._lock:
+            return self._jobs.get(self._active) if self._active else None
+
+    def get(self, job_id: str) -> GenerationJob | None:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def recent(self, limit: int = 10) -> list[GenerationJob]:
+        with self._lock:
+            ids = list(reversed(self._order))[:limit]
+            return [self._jobs[i] for i in ids if i in self._jobs]
+
+    def readiness(self) -> dict[str, Any]:
+        """Whether a run could succeed right now, and if not, why not.
+
+        Synthesis reads clusters. A database that has been initialised but never
+        refreshed has none, and the failure mode without this check is a run that
+        starts, does nothing, and reports zero — indistinguishable from "the
+        evidence does not support it", which is a completely different message.
+        """
+        clusters = self.db.query_one("SELECT COUNT(*) n FROM clusters")["n"]
+        signals = self.db.query_one("SELECT COUNT(*) n FROM signals WHERE cluster_id IS NOT NULL")["n"]
+        active = self.active()
+        return {
+            "clusters": clusters,
+            "clustered_signals": signals,
+            "ready": clusters > 0,
+            "reason": None if clusters > 0 else (
+                "No theme clusters exist yet, so there is no evidence to synthesise from. "
+                "Run a refresh (`radar refresh`) first — generation reasons over the corpus "
+                "the pipeline has already collected and clustered."
+            ),
+            "max_per_run": MAX_PER_RUN,
+            "busy": active.id if active and active.status in ("queued", "running") else None,
+        }
+
+    # -- write side ----------------------------------------------------------
+
+    def start_from_brief(self, description: str, run_critic: bool = True,
+                         run_entailment: bool = True) -> GenerationJob:
+        """One space from a written description of the opportunity.
+
+        Shares the single-run guard, the stage chain and the reporting with the
+        grid path — the only thing that differs is what steers the model. The
+        description is a search brief, never evidence: it retrieves the closest
+        corroborated signals in the corpus and those become the evidence block
+        (see Synthesiser.run_from_brief).
+        """
+        brief = " ".join((description or "").split())
+        if len(brief) < MIN_BRIEF_CHARS:
+            raise ValueError(
+                f"Describe the opportunity in at least {MIN_BRIEF_CHARS} characters. A few words "
+                f"cannot retrieve evidence specific enough to build a space on — name the sector, "
+                f"who has the problem, and what would be deployed."
+            )
+        if len(brief) > MAX_BRIEF_CHARS:
+            raise ValueError(f"Keep the description under {MAX_BRIEF_CHARS} characters.")
+        return self._enqueue(GenerationJob(
+            id=self._next_id(),
+            requested=1,
+            constraints=GenerationConstraints(),
+            kind="brief",
+            brief=brief,
+            started_at=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        ), run_critic, run_entailment)
+
+    def start(self, count: int, constraints: GenerationConstraints,
+              run_critic: bool = True, run_entailment: bool = True) -> GenerationJob:
+        if count < 1 or count > MAX_PER_RUN:
+            raise ValueError(f"Ask for between 1 and {MAX_PER_RUN} spaces; {count} was requested.")
+        self._validate_constraints(constraints)
+        return self._enqueue(GenerationJob(
+            id=self._next_id(),
+            requested=count,
+            constraints=constraints,
+            started_at=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        ), run_critic, run_entailment)
+
+    @staticmethod
+    def _next_id() -> str:
+        return f"G-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}"
+
+    def _enqueue(self, job: GenerationJob, run_critic: bool, run_entailment: bool) -> GenerationJob:
+        with self._lock:
+            current = self._jobs.get(self._active) if self._active else None
+            if current and current.status in ("queued", "running"):
+                raise RuntimeError(
+                    f"Generation run {current.id} is already in flight. Synthesis writes opportunity "
+                    f"spaces and the identity rule (DR-03) is enforced by a unique index on the "
+                    f"taxonomy triple, so two runs cannot proceed at once."
+                )
+            self._jobs[job.id] = job
+            self._order.append(job.id)
+            self._active = job.id
+            for stale in self._order[:-HISTORY_LIMIT]:
+                self._jobs.pop(stale, None)
+            del self._order[:-HISTORY_LIMIT]
+
+        thread = threading.Thread(
+            target=self._run, args=(job, run_critic, run_entailment),
+            name=f"generate-{job.id}", daemon=True,
+        )
+        thread.start()
+        return job
+
+    def _validate_constraints(self, constraints: GenerationConstraints) -> None:
+        """Closed vocabularies apply to the REQUEST too (§3.3).
+
+        A typo'd vertical would otherwise produce a run that reads the whole
+        corpus, rejects every candidate for being outside a vertical that does
+        not exist, and reports an evidence shortfall.
+        """
+        unknown = [v for v in constraints.verticals if v not in self.cfg.verticals]
+        if unknown:
+            raise ValueError(f"Unknown vertical(s): {unknown}. Known: {self.cfg.verticals.ids}")
+        unknown = [d for d in constraints.domains if d not in self.cfg.domains]
+        if unknown:
+            raise ValueError(f"Unknown domain(s): {unknown}. Known: {self.cfg.domains.ids}")
+        unknown = [h for h in constraints.horizons if h not in ("now", "next", "later")]
+        if unknown:
+            raise ValueError(f"Unknown horizon(s): {unknown}. Known: ['now', 'next', 'later']")
+
+    # -- the run itself ------------------------------------------------------
+
+    def _run(self, job: GenerationJob, run_critic: bool, run_entailment: bool) -> None:
+        reference_date = dt.date.today()
+        try:
+            ready = self.readiness()
+            if not ready["ready"]:
+                raise RuntimeError(ready["reason"])
+
+            job.status = "running"
+            llm = LLMClient(max_retries=self.cfg.settings["llm"]["max_retries"])
+            job.refresh_id = self._open_refresh(job, reference_date)
+            if job.kind == "brief":
+                job.say(f"Run {job.id} started from a written brief: “{job.brief}”")
+                job.say("The brief is a search request, not evidence. It retrieves the closest "
+                        "corroborated signals in the corpus, and those become the only facts the "
+                        "model may use (§4.4.4).")
+            else:
+                job.say(
+                    f"Run {job.id} started: {job.requested} space(s) requested"
+                    + (f", bounded to {job.constraints.as_dict()}" if job.constraints
+                       else ", unconstrained (the whole evidenced grid is in scope)")
+                )
+                job.say(f"Reasoning over {ready['clusters']} theme cluster(s) "
+                        f"covering {ready['clustered_signals']} classified signal(s).")
+
+            # -- stage 1: synthesis, the only creative step ------------------
+            job.stage = "synthesise"
+            synth = Synthesiser(self.cfg, self.db, llm, self._get_embedder(),
+                                constraints=job.constraints)
+            if job.kind == "brief":
+                stats = synth.run_from_brief(
+                    job.refresh_id, job.brief or "", run_critic=run_critic,
+                    run_entailment=run_entailment, progress=job.say,
+                    cancelled=lambda: job.cancelled, tick=job.observe,
+                )
+            else:
+                stats = synth.run(
+                    job.refresh_id, run_critic=run_critic, run_entailment=run_entailment,
+                    target_new=job.requested, progress=job.say, cancelled=lambda: job.cancelled,
+                    tick=job.observe,
+                )
+            job.created_ids = list(stats.created_ids)
+            job.updated_ids = list(dict.fromkeys(stats.updated_ids))
+            job.stats["synthesis"] = stats.as_dict()
+            job.stages_done.append("synthesise")
+            job.say(
+                f"Synthesis finished after {stats.rounds} round(s): {len(job.created_ids)} new space(s), "
+                f"{len(job.updated_ids)} existing space(s) refreshed with new evidence."
+            )
+            self._report_shortfall(job, stats)
+
+            # A run that created nothing has nothing to enrich, link or score,
+            # and running those stages anyway would report seven green stages
+            # over an empty result.
+            if job.created_ids:
+                self._finish_topics(job, llm, reference_date)
+            else:
+                job.say("No new spaces were created, so the downstream stages have nothing to do.")
+
+            job.stats["llm_usage"] = llm.usage_summary()   # NFR-10
+            job.status = "cancelled" if job.cancelled else "done"
+        except Exception as exc:  # noqa: BLE001 — a background thread must not die silently
+            log.exception("Generation run %s failed", job.id)
+            job.status = "error"
+            job.error = f"{type(exc).__name__}: {exc}"
+            job.say(f"Run failed: {job.error}")
+        finally:
+            job.finished_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+            job.stage = None
+            self._close_refresh(job)
+            with self._lock:
+                if self._active == job.id:
+                    self._active = None
+
+    def _finish_topics(self, job: GenerationJob, llm: LLMClient, reference_date: dt.date) -> None:
+        """Take the new spaces from `candidate` to something worth opening.
+
+        Each stage is scoped to the ids this run created. The order is the
+        pipeline's own (Table 16) and it matters: sizing reads right-to-win for
+        its obtainable-share assumption and links for portfolio distance, so it
+        cannot run before scoring and linking.
+        """
+        ids = job.created_ids
+        steps = (
+            ("enrich", lambda: Enricher(self.cfg, self.db, self._get_embedder())
+                .run(job.refresh_id or "", reference_date, topic_ids=ids)),
+            ("link", lambda: Linker(self.cfg, self.db).run(topic_ids=ids)),
+            ("score", lambda: ScoringEngine(self.cfg, self.db, llm)
+                .run(job.refresh_id or "", reference_date, topic_ids=ids)),
+            ("actions", lambda: NextActionGenerator(self.cfg, self.db, llm).run(topic_ids=ids)),
+            ("size", lambda: MarketSizer(self.cfg, self.db).run(topic_ids=ids)),
+            ("competition", lambda: CompetitionAnalyser(self.cfg, self.db).run(topic_ids=ids)),
+        )
+        for name, step in steps:
+            if job.cancelled:
+                job.say(f"Cancelled before {name}. The {len(ids)} space(s) already created remain, "
+                        f"unfinished — a refresh will complete them.")
+                return
+            job.stage = name
+            job.say(dict(STAGE_LABELS)[name] + f" for {len(ids)} space(s)…")
+            try:
+                job.stats[name] = step()
+            except Exception as exc:  # noqa: BLE001
+                # One failed finishing stage should not discard spaces that were
+                # legitimately synthesised. It is recorded and the run continues:
+                # a space with no market size is still a space, and §4.12's rule
+                # is that the gap is reported rather than hidden.
+                job.stats[name] = {"error": f"{type(exc).__name__}: {exc}"}
+                job.say(f"Stage {name} failed ({exc}). The spaces remain; re-run this stage to complete them.")
+                continue
+            job.stages_done.append(name)
+
+        landed = self._horizon_landing(job)
+        if landed:
+            job.stats["horizon_landed"] = landed
+            job.say("Derived horizons (§4.8 derives these from the evidence; the filter steered "
+                    "the run, it did not set them): "
+                    + ", ".join(f"{k}: {v}" for k, v in sorted(landed.items())))
+
+    # -- reporting helpers ---------------------------------------------------
+
+    def _report_shortfall(self, job: GenerationJob, stats) -> None:
+        """Say why the run fell short, if it did (§4.12).
+
+        The requirement everyone skips: what was NOT produced is logged, never
+        silently dropped. A screen that asked for eight and shows three has to
+        say which gate the other five died at, or the honest answer ("the
+        evidence does not support eight in this slice") is indistinguishable
+        from a bug.
+        """
+        created = len(stats.created_ids)
+        if created >= job.requested:
+            return
+        if job.kind == "brief" and not stats.raw_candidates:
+            job.say(
+                "Nothing was generated. Either the corpus carries no evidence close enough to that "
+                "description, or what it carries does not support an opportunity space along those "
+                "lines. Both are real answers — the alternative would be restating your sentence "
+                "back to you with citations that do not support it."
+            )
+            return
+        reasons = []
+        if stats.failed_constraints:
+            reasons.append(f"{stats.failed_constraints} fell outside the requested scope")
+        if stats.failed_critic:
+            reasons.append(f"{stats.failed_critic} were rejected by the critic")
+        if stats.failed_evidence:
+            reasons.append(f"{stats.failed_evidence} had no claim that survived evidence binding")
+        if stats.failed_specificity:
+            reasons.append(f"{stats.failed_specificity} failed the specificity test")
+        if stats.failed_vocabulary:
+            reasons.append(f"{stats.failed_vocabulary} used a value outside the taxonomy")
+        if stats.merged_duplicates:
+            reasons.append(f"{stats.merged_duplicates} were near-duplicates of one another")
+        if stats.updated_ids:
+            reasons.append(f"{len(set(stats.updated_ids))} matched an existing space and refreshed it "
+                           f"instead of creating a new one (DR-03)")
+        job.say(
+            f"Asked for {job.requested}, created {created}. Of {stats.raw_candidates} raw candidate(s): "
+            + ("; ".join(reasons) if reasons else "no candidate cleared curation")
+            + ". The evidence in scope did not support more — that is an answer, not a failure."
+        )
+
+    def _horizon_landing(self, job: GenerationJob) -> dict[str, int]:
+        """Where the new spaces actually landed on Now / Next / Later."""
+        if not job.created_ids:
+            return {}
+        placeholders = ",".join("?" * len(job.created_ids))
+        rows = self.db.query(
+            f"SELECT horizon, COUNT(*) n FROM opportunity_spaces WHERE id IN ({placeholders}) "
+            f"GROUP BY horizon", tuple(job.created_ids)
+        )
+        return {(r["horizon"] or "underived"): r["n"] for r in rows}
+
+    # -- provenance ----------------------------------------------------------
+
+    def _open_refresh(self, job: GenerationJob, reference_date: dt.date) -> str:
+        """Record the run in `refreshes` (NFR-04).
+
+        Every score and every signal attachment carries a refresh id, so a run
+        that writes those has to have one. It is recorded as a refresh of kind
+        `generation` rather than pretending to be a cadence run: the difference
+        matters to anyone reading the log, since this one collected nothing.
+        """
+        self.db.init_schema()
+        with self.db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO refreshes (id, started_at, reference_date, is_replay, pipeline_version, "
+                "weight_set) VALUES (?,?,?,0,?,?)",
+                (job.id, job.started_at, reference_date.isoformat(),
+                 self.cfg.pipeline_version, self.cfg.weight_set),
+            )
+        return job.id
+
+    def _close_refresh(self, job: GenerationJob) -> None:
+        if not job.refresh_id:
+            return
+        stats = {
+            "kind": "generation",
+            "requested": job.requested,
+            "constraints": job.constraints.as_dict(),
+            "status": job.status,
+            "created_ids": job.created_ids,
+            "updated_ids": job.updated_ids,
+            **job.stats,
+        }
+        try:
+            with self.db.cursor() as cur:
+                cur.execute("UPDATE refreshes SET finished_at = ?, stats = ? WHERE id = ?",
+                            (job.finished_at, js(stats), job.refresh_id))
+        except Exception:  # noqa: BLE001
+            log.exception("Could not close refresh row for %s", job.id)

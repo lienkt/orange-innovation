@@ -22,21 +22,24 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import bootstrap
 from .brief import BriefBuilder, brief_for_topic, brief_path
 from .competition import CompetitionAnalyser, LEVEL_MEANING, competition_for_topic
 from .config import get_config
-from .db import Database, js
+from .db import Database, js, unjs
+from .generation import MAX_BRIEF_CHARS, MAX_PER_RUN, MIN_BRIEF_CHARS, GenerationService
 from .graph import LINK_MEANING, Linker
+from .pipeline.synthesis import GenerationConstraints
 from .llm import LLMClient
 from .pipeline.describe import DescriptionGenerator, description_for_topic
 from .reference import ReferenceDataFetcher, reference_status
 from .sizing import MarketSizer, sizes_for_topic
 from .workflow import (AXIS_ANCHORS, AXIS_LABELS, ROLE_AXIS, STAGE_LABELS,
                        STAGE_OWNER_ROLE, STAGES, WorkflowService)
-from .readmodel import SORTS, ReadModel
+from .readmodel import (NOT_A_GENERATION, SORTS, ReadModel, facet_counts, matches_filters,
+                        refresh_kind, topic_for_list)
 
 log = logging.getLogger(__name__)
 
@@ -107,9 +110,12 @@ def _vocab_payload(vocab) -> list[dict[str, Any]]:
 @app.get("/api/meta")
 def meta() -> dict[str, Any]:
     """Controlled vocabularies, role modes and filter dimensions (AC-04, FR-12)."""
+    # AC-02 freshness is a claim about when evidence was last COLLECTED, so an
+    # on-demand generation run is excluded: it reorganises the corpus it was
+    # given and would otherwise stamp today's date over a six-week-old one.
     last = _db.query_one(
         "SELECT id, started_at, finished_at, reference_date, is_replay, weight_set "
-        "FROM refreshes ORDER BY started_at DESC LIMIT 1"
+        f"FROM refreshes WHERE {NOT_A_GENERATION} ORDER BY started_at DESC LIMIT 1"
     )
     return {
         "verticals": _vocab_payload(_cfg.verticals),
@@ -256,7 +262,10 @@ def refreshes(limit: int = Query(20)) -> dict[str, Any]:
         "SELECT id, started_at, finished_at, reference_date, is_replay, pipeline_version, weight_set "
         "FROM refreshes ORDER BY started_at DESC LIMIT ?", (limit,)
     )
-    return {"refreshes": [dict(r) for r in rows]}
+    # Generation runs ARE listed here — this endpoint is the log, and hiding a
+    # write from the log would be the wrong kind of tidy. They are labelled
+    # instead, because a run that collected nothing is a different event.
+    return {"refreshes": [dict(r) | {"kind": refresh_kind(r["id"])} for r in rows]}
 
 
 @app.get("/api/graph/node/{node_id:path}")
@@ -806,6 +815,240 @@ def analytics_market_size() -> dict[str, Any]:
         "competition_by_level": {r["level"]: r["n"] for r in levels},
         "sizing_version": _cfg.sizing_version,
     }
+
+
+# ---------------------------------------------------------------------------
+# Generation (the Generate screen)
+#
+# The one place this API writes something the pipeline would otherwise own. The
+# module docstring above says the API is read-only "except for the two write
+# paths the requirements demand" — this is a third, and it is a deliberate
+# widening rather than an oversight: FR-19 refreshes on a cadence, and a
+# strategist who wants five more spaces in one vertical today should not have to
+# wait for the cadence or reach a shell. What it is NOT allowed to do is
+# invent a score: it runs the same pipeline stages, in the same order, with the
+# same validation, and the only thing the screen adds is a bound on the scope.
+# ---------------------------------------------------------------------------
+
+#: Live for the purpose of "what already exists here". Wider than the radar
+#: view's default, because a `candidate` space that nobody promoted still
+#: occupies its taxonomy cell — and DR-03 means a run that lands on that cell
+#: refreshes it rather than creating anything. Somebody deciding whether to
+#: generate needs to see it. `rejected` is excluded: it was ruled out.
+_GENERATION_STATES = ("active", "watchlist", "fading", "candidate", "dormant")
+
+_generation = GenerationService(_cfg, _db)
+
+
+def _generation_filters(vertical: list[str] | None, domain: list[str] | None,
+                        geography: list[str] | None, horizon: list[str] | None) -> dict[str, Any]:
+    return {key: value for key, value in (("vertical", vertical), ("domain", domain),
+                                          ("geography", geography), ("horizon", horizon)) if value}
+
+
+class GenerateIn(BaseModel):
+    count: int = Field(5, ge=1, le=MAX_PER_RUN,
+                       description="How many NEW opportunity spaces to create (DR-03: a run that "
+                                   "lands on an existing taxonomy triple refreshes it instead, and "
+                                   "that does not count towards this).")
+    geographies: list[str] = Field(default_factory=list)
+    verticals: list[str] = Field(default_factory=list)
+    horizons: list[str] = Field(default_factory=list)
+    domains: list[str] = Field(default_factory=list)
+    run_critic: bool = True
+    run_entailment: bool = True
+
+
+def _job_payload(job) -> dict[str, Any]:
+    """A run, plus what it actually produced.
+
+    The ids alone answer "did it work" and not "what did it make", which is the
+    question somebody who just generated five spaces is actually asking. The
+    rows are the same projection the radar list uses, so the screen can show a
+    new space the way it shows an existing one — statement, taxonomy, horizon,
+    scores — without a second round trip per id.
+    """
+    payload = job.as_dict()
+    payload["created_topics"] = [
+        # The list projection, plus `why_hot` put back. A list row drops the
+        # cited claims because the detail pane is one click away and the radar
+        # shows two dozen rows at once — neither is true here. These spaces were
+        # made seconds ago, nobody has read them, and "why does the radar think
+        # this is a thing" is the first question. It is answerable at all only
+        # because §4.4.4 makes every claim carry the signal ids behind it, so
+        # showing it beside the statement is the point rather than a decoration.
+        topic_for_list(topic) | {"why_hot": topic.get("why_hot", [])}
+        for topic in _read.topics_by_id(payload.get("created_ids") or [])
+    ]
+    return payload
+
+
+@app.get("/api/generate/options")
+def generation_options() -> dict[str, Any]:
+    """What the Generate screen can offer, and whether a run is possible now.
+
+    Geographies are not a controlled vocabulary — they are ISO codes carried by
+    signals (§2.6: geography attaches to signals, not only to topics) — so the
+    list has to be read from the corpus rather than from config. Both counts are
+    returned because they answer different questions: `spaces` is what already
+    exists there, `signals` is whether there is evidence to generate from.
+    """
+    from_signals: dict[str, int] = {}
+    for row in _db.query("SELECT geographies FROM signals WHERE relevance > 0"):
+        for code in unjs(row["geographies"], []) or []:
+            from_signals[str(code)] = from_signals.get(str(code), 0) + 1
+    from_spaces: dict[str, int] = {}
+    placeholders = ",".join("?" * len(_GENERATION_STATES))
+    for row in _db.query(
+        f"SELECT geographies FROM opportunity_spaces WHERE merged_into IS NULL "
+        f"AND state IN ({placeholders})", _GENERATION_STATES
+    ):
+        for code in unjs(row["geographies"], []) or []:
+            from_spaces[str(code)] = from_spaces.get(str(code), 0) + 1
+
+    geographies = [
+        {"id": code, "signals": from_signals.get(code, 0), "spaces": from_spaces.get(code, 0)}
+        for code in sorted(set(from_signals) | set(from_spaces))
+    ]
+    geographies.sort(key=lambda g: (-g["signals"], g["id"]))
+    total_live = _db.query_one(
+        f"SELECT COUNT(*) n FROM opportunity_spaces WHERE merged_into IS NULL "
+        f"AND state IN ({placeholders})", _GENERATION_STATES
+    )["n"]
+    return {"geographies": geographies, "total_live": total_live,
+            "min_brief_chars": MIN_BRIEF_CHARS, "max_brief_chars": MAX_BRIEF_CHARS,
+            **_generation.readiness()}
+
+
+@app.get("/api/generate/matching")
+def generation_matching(
+    vertical: list[str] | None = Query(None),
+    domain: list[str] | None = Query(None),
+    geography: list[str] | None = Query(None),
+    horizon: list[str] | None = Query(None),
+    limit: int = Query(60, ge=1, le=500),
+) -> dict[str, Any]:
+    """The opportunity spaces that ALREADY meet the criteria a run would use.
+
+    Deliberately not `/api/view`: that endpoint filters by role first (§4.5.3),
+    and "what does a salesperson get to see" is the wrong question here.
+    Generation writes to the whole corpus, so the screen has to show the whole
+    corpus, or someone asks for five more in a cell that already holds eleven.
+
+    Filtering uses the read model's own `_matches`, so this count means exactly
+    what the same filters mean on the radar — including its rule that a space
+    carrying no geography is global rather than excluded, which is the same rule
+    constrained synthesis validates candidates against.
+    """
+    filters = _generation_filters(vertical, domain, geography, horizon)
+    topics = _read.topics(states=_GENERATION_STATES)
+    matched = [t for t in topics if matches_filters(t, filters)]
+    matched.sort(key=lambda t: (t.get("attractiveness") or {}).get("score", 0.0), reverse=True)
+    return {
+        "filters": filters,
+        "count": len(matched),
+        "total_live": len(topics),
+        "facets": facet_counts(matched),
+        "truncated": len(matched) > limit,
+        "topics": [topic_for_list(t) for t in matched[:limit]],
+    }
+
+
+@app.post("/api/generate")
+def start_generation(payload: GenerateIn) -> dict[str, Any]:
+    """Start a constrained generation run (background; poll the job)."""
+    constraints = GenerationConstraints.from_dict({
+        "verticals": payload.verticals, "domains": payload.domains,
+        "geographies": payload.geographies, "horizons": payload.horizons,
+    })
+    try:
+        job = _generation.start(payload.count, constraints,
+                                run_critic=payload.run_critic,
+                                run_entailment=payload.run_entailment)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        # 409, not 500: the request is well-formed and will succeed later.
+        raise HTTPException(409, str(exc)) from exc
+    return _job_payload(job)
+
+
+class GenerateFromBriefIn(BaseModel):
+    description: str = Field(
+        description="A written description of the opportunity being looked for. Treated as a "
+                    "SEARCH BRIEF, never as evidence: it retrieves the closest corroborated "
+                    "signals in the corpus and those become the only facts the model may cite.",
+    )
+    run_critic: bool = True
+    run_entailment: bool = True
+
+    @field_validator("description")
+    @classmethod
+    def _collapse_whitespace(cls, value: str) -> str:
+        """Normalise here, so the schema measures what the service will measure.
+
+        A length bound on the raw string and a second one on the collapsed string
+        disagree about padded input: the browser's own character counter says
+        the brief is long enough, the schema agrees, and the service rejects it.
+        One normalisation, applied before either check.
+        """
+        return " ".join((value or "").split())
+
+
+@app.post("/api/generate/brief")
+def start_generation_from_brief(payload: GenerateFromBriefIn) -> dict[str, Any]:
+    """Generate ONE opportunity space from a written description.
+
+    Same background job, same stage chain, same curation as the grid path — the
+    difference is only what steers the model. If the corpus carries nothing close
+    to the description, the run says so and creates nothing, which is the answer
+    §4.1 asks for rather than a failure to work around.
+    """
+    try:
+        job = _generation.start_from_brief(payload.description,
+                                           run_critic=payload.run_critic,
+                                           run_entailment=payload.run_entailment)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _job_payload(job)
+
+
+@app.get("/api/generate/jobs")
+def generation_jobs(limit: int = Query(10, ge=1, le=20)) -> dict[str, Any]:
+    """Recent runs, newest first — so a page reload does not lose the record."""
+    active = _generation.active()
+    return {
+        "active": active.id if active and active.status in ("queued", "running") else None,
+        "jobs": [_job_payload(job) for job in _generation.recent(limit)],
+    }
+
+
+@app.get("/api/generate/{job_id}")
+def generation_status(job_id: str) -> dict[str, Any]:
+    job = _generation.get(job_id)
+    if job is None:
+        raise HTTPException(404, f"No such generation run: {job_id}")
+    return _job_payload(job)
+
+
+@app.post("/api/generate/{job_id}/cancel")
+def cancel_generation(job_id: str) -> dict[str, Any]:
+    """Stop after the work in flight.
+
+    Cooperative rather than abrupt: a model call already issued is allowed to
+    finish and spaces already written stay written. Killing the thread mid-write
+    would leave a space with evidence attached and no score, which is worse than
+    a slightly late stop.
+    """
+    job = _generation.get(job_id)
+    if job is None:
+        raise HTTPException(404, f"No such generation run: {job_id}")
+    if job.status not in ("queued", "running"):
+        raise HTTPException(409, f"Run {job_id} has already finished ({job.status}).")
+    job.cancel()
+    return _job_payload(job)
 
 
 # ---------------------------------------------------------------------------

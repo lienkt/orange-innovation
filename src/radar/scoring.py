@@ -662,15 +662,29 @@ class ScoringEngine:
         self.right_to_win = RightToWinScorer(cfg, db)
         self.linker = Linker(cfg, db)
 
-    def run(self, refresh_id: str, reference_date: dt.date) -> dict[str, Any]:
+    def run(self, refresh_id: str, reference_date: dt.date,
+            topic_ids: list[str] | None = None) -> dict[str, Any]:
+        """Score every live topic, or just `topic_ids`.
+
+        The subset form exists for constrained generation: scoring five new
+        spaces should not spend a strategic-relevance model call on the other
+        two hundred and ninety. NORMALISATION STILL READS THE WHOLE CORPUS —
+        Table 27 normalises market signal strength against the distribution
+        across all live topics, so scoping the write set must not scope the
+        denominator, or the five new topics would be scored on a scale of their
+        own and rank against the rest meaninglessly.
+        """
         topics = self.db.query("SELECT * FROM opportunity_spaces WHERE merged_into IS NULL")
         if not topics:
             return {"scored": 0}
+        scope = set(topic_ids) if topic_ids is not None else None
 
         window_start = (reference_date - dt.timedelta(days=self.attractiveness.window_days)).isoformat()
         signals_by_topic: dict[str, list[dict]] = {}
         all_signals_by_topic: dict[str, list[dict]] = {}
         for topic in topics:
+            if scope is not None and topic["id"] not in scope:
+                continue
             # Everything attached and published on or before the reference date.
             # The reference-date bound is the FR-35 leakage control and applies
             # on replay as well as on a live refresh.
@@ -686,8 +700,22 @@ class ScoringEngine:
             ]
 
         # Normalisation is against the distribution across all live topics
-        # (Table 27), so the corpus maximum is computed once per refresh.
-        corpus_max = max((len(v) for v in signals_by_topic.values()), default=1)
+        # (Table 27), so the corpus maximum is computed once per refresh — over
+        # the WHOLE corpus even when the write set is scoped. Scoped runs read it
+        # as a single grouped count rather than materialising every signal row of
+        # three hundred topics they are not going to score.
+        if scope is None:
+            corpus_max = max((len(v) for v in signals_by_topic.values()), default=1)
+        else:
+            corpus_max = self.db.query_one(
+                """SELECT MAX(n) m FROM (
+                       SELECT COUNT(*) n FROM opportunity_signals os
+                       JOIN signals s ON s.id = os.signal_id
+                       JOIN opportunity_spaces o ON o.id = os.opportunity_id
+                       WHERE o.merged_into IS NULL AND s.published_at <= ? AND s.published_at >= ?
+                       GROUP BY os.opportunity_id)""",
+                (reference_date.isoformat(), window_start),
+            )["m"] or 1
 
         now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
         scored = 0
@@ -695,6 +723,8 @@ class ScoringEngine:
 
         with self.db.cursor() as cur:
             for topic in topics:
+                if topic["id"] not in signals_by_topic:
+                    continue
                 topic_dict = dict(topic)
                 signals = signals_by_topic[topic["id"]]
                 links = [dict(r) for r in self.db.query(

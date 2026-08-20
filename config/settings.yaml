@@ -90,9 +90,18 @@ curation:
 clustering:
   # Deterministic agglomerative clustering — reproducibility is a requirement
   # (SC-11), so no randomised initialisation is used.
-  distance_threshold: 0.62
+  # Tightened from 0.62. Finer clusters are not merely more numerous — they are
+  # more specific themes, and specificity is the property the briefing insists
+  # on. A broad cluster invites a broad candidate, which the critic then rejects.
+  distance_threshold: 0.58
+  # Still 3. A two-item "theme" is the one-off signal SC-09 says must score low,
+  # and feeding it to synthesis manufactures exactly the thin topic the critic
+  # exists to catch. Lowering this would buy topic count at the cost of the bar.
   min_cluster_size: 3
-  max_clusters: 120
+  # Raised from 120, which was binding: 80 clusters formed from 2,064 relevant
+  # signals, and the corpus is now several times that. A cap that silently
+  # truncates the tail hides evidenced themes rather than prioritising them.
+  max_clusters: 400
 
 # ---- Evidence enrichment (§4.4.5 "new signals attach to the existing topic").
 enrichment:

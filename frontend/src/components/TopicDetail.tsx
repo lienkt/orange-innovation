@@ -41,6 +41,24 @@ interface Props {
 /** Claims shown before the fold. Four is what fits above the market figures. */
 const CLAIM_PREVIEW = 4
 
+/** The nearest ancestor that actually scrolls, or null for the document.
+ *
+ * Asking the DOM beats naming the container: which element scrolls depends on
+ * which surface this pane is rendered into, and a name that is right in one
+ * place fails silently in the others.
+ */
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement
+  while (node && node !== document.body) {
+    const overflow = window.getComputedStyle(node).overflowY
+    if ((overflow === 'auto' || overflow === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node
+    }
+    node = node.parentElement
+  }
+  return null
+}
+
 /** Collapse near-identical claims, keeping every citation.
  *
  * Two claims that differ only in wording are one fact to a reader and two rows
@@ -104,22 +122,31 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
   /** Scroll the pane to a section, and take the reading cursor with it.
    *
-   * Two bugs lived in the previous four lines. `offsetTop` is measured from the
-   * nearest positioned ancestor, which here IS the pane, so subtracting the
-   * pane's own offset overshot every jump by the height of the header. And
-   * scrolling alone leaves a keyboard or screen-reader user exactly where they
-   * were: the jump has to move focus, or it only works for people who can see
-   * the page move.
+   * Two bugs lived in the original four lines. `offsetTop` is measured from the
+   * nearest positioned ancestor, which in the side pane IS the pane, so
+   * subtracting the pane's own offset overshot every jump by the height of the
+   * header. And scrolling alone leaves a keyboard or screen-reader user exactly
+   * where they were: the jump has to move focus, or it only works for people
+   * who can see the page move.
+   *
+   * The container is FOUND rather than named. This component now renders on
+   * three surfaces — the side pane, the narrow-window detail tab, and full
+   * screen — and each scrolls a different element; hardcoding `.detail-pane`
+   * meant the jump bar silently did nothing on the other two.
    */
   const jumpTo = (sectionId: string) => {
     const target = document.getElementById(`section-${sectionId}`)
-    const pane = target?.closest('.detail-pane') as HTMLElement | null
-    if (!target || !pane) return
+    if (!target) return
+    const pane = scrollParent(target)
     // The jump bar is sticky, so the target has to clear it or the heading lands
     // underneath the thing that sent you there.
-    const nav = pane.querySelector('.detail-nav') as HTMLElement | null
+    const nav = (pane ?? document).querySelector('.detail-nav') as HTMLElement | null
     const clearance = (nav?.offsetHeight ?? 0) + 10
-    pane.scrollTop += target.getBoundingClientRect().top - pane.getBoundingClientRect().top - clearance
+    if (pane) {
+      pane.scrollTop += target.getBoundingClientRect().top - pane.getBoundingClientRect().top - clearance
+    } else {
+      window.scrollBy({ top: target.getBoundingClientRect().top - clearance })
+    }
     const heading = target.querySelector('h4')
     if (heading) {
       heading.setAttribute('tabindex', '-1')

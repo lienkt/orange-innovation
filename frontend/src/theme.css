@@ -605,6 +605,8 @@ table.data td.num { font-family: var(--mono); text-align: right; }
 .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 
 .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+/* `1 / -1` spans every column the auto-fit produced, whatever that number is. */
+.chart-card-wide { grid-column: 1 / -1; }
 .chart-card {
   background: var(--surface-1); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 14px 16px;
@@ -621,16 +623,36 @@ table.data td.num { font-family: var(--mono); text-align: right; }
 .bar-fill { height: 100%; }
 .bar-num { font-family: var(--mono); font-size: 11px; text-align: right; color: var(--text-secondary); }
 
-.heat-grid { display: grid; gap: 2px; overflow-x: auto; }
-.heat-cell { aspect-ratio: 1.6; border-radius: 3px; display: flex; align-items: center; justify-content: center;
-             font-family: var(--mono); font-size: 10px; cursor: pointer; }
+/* No `overflow-x` here. The columns are `minmax(0, 1fr)`, so the grid fits
+   whatever the card gives it — a pixel floor plus an auto-scroll is how a
+   fifteen-by-six matrix ends up scrolling sideways inside a card wide enough to
+   hold it. The card takes the whole chart-grid row (.chart-card-wide) because
+   this chart's width is structural: it is a matrix, and the neighbouring bar
+   lists genuinely do read fine in a 330px column. */
+/* Rows are a FIXED height, not an aspect ratio. Nothing in this chart encodes
+   shape — colour carries the magnitude and the count is printed — so tying cell
+   height to cell width only meant that giving the grid the full row turned 15
+   rows of 34px into 15 rows of 75px. The header row stays `auto` so a two-line
+   column label is not clipped. */
+.heat-grid { display: grid; gap: 2px; grid-template-rows: auto; grid-auto-rows: 34px; }
+.heat-cell { border-radius: 3px; display: flex; align-items: center; justify-content: center;
+             font-family: var(--mono); font-size: 10px; cursor: pointer; min-width: 0; }
 .heat-head {
   font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .02em;
   display: flex; flex-direction: column; justify-content: flex-end;
-  padding-bottom: 3px; line-height: 1.15; word-break: break-word;
+  padding-bottom: 3px; line-height: 1.15; overflow-wrap: anywhere; min-width: 0;
 }
-.heat-rowhead { font-size: 10.5px; color: var(--text-secondary); display: flex; align-items: center;
-                padding-right: 6px; justify-content: flex-end; text-align: right; }
+.heat-rowhead {
+  font-size: 10.5px; color: var(--text-secondary); display: flex; align-items: center;
+  justify-content: flex-end; padding-right: 6px; min-width: 0;
+}
+/* Truncation in CSS rather than a character slice in JS: how much of a label
+   fits depends on how wide the card is, which only the browser knows. It needs
+   its own block — `text-overflow` does not apply to a flex container's own text
+   — and the full label is on the row's `title` either way. */
+.heat-rowhead > span {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .div-row { display: grid; grid-template-columns: 1fr 200px 1fr; gap: 6px; align-items: center; margin-bottom: 7px; font-size: 11.5px; }
 .div-bar { position: relative; height: 16px; background: var(--div-mid); border-radius: 3px; }
@@ -1061,3 +1083,291 @@ table.data td.num { font-family: var(--mono); text-align: right; }
   color: var(--text-primary);
   border-radius: 3px; padding: 0 4px; font-variant-numeric: tabular-nums;
 }
+
+/* ---------- generate screen ----------
+ *
+ * A whole screen rather than a tab, because it does something the rest of the
+ * interface does not: it WRITES. Every other view reads a projection of the
+ * corpus, and the filter rail beside the tabs means "what should I be shown".
+ * Here the same four questions mean "what should be created", and two controls
+ * that look identical while meaning different things is the confusion this
+ * layout exists to avoid.
+ *
+ * The reading layout is hidden rather than unmounted while this is open, so
+ * scroll position and an in-flight radar fetch survive going back. `.layout`
+ * sets `display: grid`, which outranks the UA rule for [hidden], so the
+ * attribute needs saying explicitly here.
+ */
+.layout[hidden] { display: none; }
+
+.generate-btn {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  font-weight: 600; flex: none;
+}
+.generate-btn:hover { border-color: var(--accent-text); }
+.generate-btn[aria-pressed="true"] { background: var(--accent-text); border-color: var(--accent-text); color: #fff; }
+
+.gen-screen {
+  flex: 1; padding: 18px 20px 40px; max-width: 1500px; width: 100%;
+  margin: 0 auto; box-sizing: border-box;
+}
+.gen-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.gen-head h2 { font-size: 17px; margin: 0 0 4px; letter-spacing: -.01em; }
+.gen-sub { font-size: 12.5px; color: var(--text-secondary); margin: 0; max-width: 640px; line-height: 1.6; }
+
+.gen-body {
+  display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 18px;
+  align-items: start;
+}
+@media (max-width: 980px) { .gen-body { grid-template-columns: minmax(0, 1fr); } }
+
+.gen-panel {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px;
+}
+.gen-panel h3 { font-size: 13px; margin: 0 0 8px; }
+
+.gen-count { display: flex; flex-direction: column; gap: 5px; margin-bottom: 20px; }
+.gen-count label { font-size: 12px; font-weight: 600; }
+.gen-count input {
+  font: inherit; font-family: var(--mono); font-size: 18px; width: 110px;
+  padding: 6px 10px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-primary);
+}
+.gen-count input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.gen-filters-head { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; }
+.gen-filters-head h3 { margin: 0; }
+.gen-clear { font-size: 11px; padding: 2px 8px; margin-left: auto; }
+
+.gen-note { font-size: 11.5px; color: var(--text-muted); margin: 0 0 8px; line-height: 1.55; }
+.gen-note-lead { margin-bottom: 14px; }
+.gen-quiet { font-size: 11.5px; color: var(--text-muted); line-height: 1.55; }
+
+.gen-group { margin-bottom: 16px; }
+.gen-group h4 {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); margin: 0 0 6px; font-weight: 600;
+}
+.gen-group-count {
+  font-family: var(--mono); font-size: 10px; color: var(--accent-ink);
+  background: var(--accent); border-radius: 999px; padding: 1px 6px; margin-left: 6px;
+}
+.gen-options { display: flex; flex-wrap: wrap; gap: 5px; }
+/* Chips rather than the rail's checkboxes: this is a short, deliberate
+   selection made once before an expensive action, not a list being swept. */
+.gen-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  font-size: 11.5px; padding: 4px 9px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.gen-chip:hover { border-color: var(--accent); }
+.gen-chip.is-on {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink); font-weight: 600;
+}
+.gen-chip-count { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+.gen-chip.is-on .gen-chip-count { color: var(--accent-ink); opacity: .75; }
+
+.gen-actions { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
+.gen-go {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  font-weight: 600; font-size: 13px; padding: 9px 16px; width: 100%;
+}
+.gen-go:disabled { opacity: .55; cursor: not-allowed; }
+.gen-actions .gen-quiet { display: block; margin-top: 8px; }
+
+.gen-blocked, .gen-error {
+  font-size: 12.5px; line-height: 1.55; border-radius: var(--radius-sm);
+  padding: 10px 13px; margin: 0 0 14px;
+}
+.gen-blocked { background: var(--surface-2); border: 1px solid var(--status-warn); color: var(--text-secondary); }
+.gen-error { background: var(--surface-2); border: 1px solid var(--status-alert); color: var(--status-alert); }
+
+/* --- what already exists there --- */
+.gen-matches-head { display: flex; align-items: baseline; gap: 10px; }
+.gen-matches-head h3 { margin: 0; }
+.gen-matches-head .gen-quiet { margin-left: auto; font-family: var(--mono); }
+.gen-match-list { display: flex; flex-direction: column; gap: 2px; max-height: 62vh; overflow-y: auto; }
+.gen-empty { font-size: 12.5px; color: var(--text-muted); padding: 18px 4px; line-height: 1.6; }
+
+.gen-match {
+  display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px;
+  align-items: start; text-align: left; padding: 8px 10px;
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+}
+.gen-match:hover { background: var(--surface-2); border-color: var(--border); }
+.gen-match-id { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); padding-top: 2px; }
+.gen-match-body { display: block; min-width: 0; }
+.gen-match-statement { display: block; font-size: 12.5px; line-height: 1.45; }
+.gen-match-meta { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 3px; }
+.gen-match-score { font-family: var(--mono); font-size: 13px; font-weight: 650; }
+
+/* --- the run itself --- */
+.gen-run {
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 12px 13px; margin: 12px 0 16px;
+}
+.gen-run-running, .gen-run-queued { border-color: var(--accent); }
+.gen-run-error { border-color: var(--status-alert); }
+.gen-run-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.gen-status { font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
+.gen-status-done { color: var(--status-ok); }
+.gen-status-error { color: var(--status-alert); }
+.gen-status-cancelled { color: var(--status-warn); }
+.gen-run-id { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+.gen-run-head button { font-size: 11.5px; padding: 3px 10px; }
+
+/* The seven stages, so a five-minute wait says which minute it is on. */
+.gen-stages { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.gen-stages li {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--text-muted); background: var(--surface-1);
+}
+.gen-stages li.is-done { border-color: var(--status-ok); color: var(--status-ok); }
+.gen-stages li.is-active { border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+.gen-outcome p { font-size: 12.5px; margin: 0 0 8px; line-height: 1.55; }
+/* What the run produced. Cards rather than chips: a newly synthesised space is
+   the one thing on this screen nobody has read yet, so the statement and the
+   cited claims belong here rather than one click away. */
+.gen-created { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.gen-created-ids { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.gen-space {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm); background: var(--surface-1); padding: 10px 12px;
+}
+.gen-space-head { display: flex; align-items: baseline; gap: 10px; }
+.gen-space-open {
+  flex: 1; min-width: 0; text-align: left; padding: 0; background: none; border: none;
+  font: inherit; font-size: 13px; font-weight: 600; line-height: 1.45;
+  color: var(--text-primary); border-radius: 2px;
+}
+.gen-space-open:hover { color: var(--accent-text); }
+.gen-space-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gen-space-id { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); flex: none; }
+.gen-space-meta { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; line-height: 1.5; }
+.gen-space-why {
+  margin: 8px 0 6px; padding-left: 16px; font-size: 12px; line-height: 1.5;
+  color: var(--text-secondary);
+}
+.gen-space-why li { margin-bottom: 3px; }
+.gen-space-cite { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+.gen-space .gen-quiet { display: block; margin-top: 6px; }
+.gen-created-chip {
+  font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 999px;
+  border-color: var(--accent); color: var(--accent-text); background: var(--surface-1);
+}
+.gen-created-chip:hover { background: var(--accent); color: var(--accent-ink); }
+
+.gen-log-wrap summary { font-size: 11.5px; color: var(--text-muted); cursor: pointer; }
+.gen-log {
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.6; color: var(--text-secondary);
+  max-height: 190px; overflow-y: auto; margin-top: 7px;
+  padding: 8px 10px; background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.gen-log-at { color: var(--text-muted); }
+.gen-run-foot { margin: 10px 0 0; }
+
+/* Progress. The number of spaces created is the headline because it is what
+   was asked for; the bar behind it also moves on evidence read, so a run that
+   has produced nothing yet reads as working rather than hung. It cannot fill on
+   evidence alone — see GenerationJob.progress. */
+.gen-progress { margin-bottom: 12px; }
+.gen-progress-line {
+  display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
+  font-size: 12.5px; margin-bottom: 6px;
+}
+.gen-progress-line b { font-family: var(--mono); font-size: 15px; font-weight: 650; }
+.gen-progress-pct { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
+.gen-progress-track {
+  height: 7px; border-radius: 999px; background: var(--grid);
+  overflow: hidden; border: 1px solid var(--border);
+}
+.gen-progress-fill {
+  height: 100%; background: var(--accent); border-radius: 999px;
+  transition: width .35s ease-out;
+}
+/* A moving sheen only while it runs, so "in flight" is legible without colour
+   alone — the width already carries the quantity. */
+.gen-progress-fill.is-live {
+  background: linear-gradient(90deg, var(--accent) 0%, var(--rtw-1) 50%, var(--accent) 100%);
+  background-size: 200% 100%;
+  animation: gen-sheen 1.8s linear infinite;
+}
+@keyframes gen-sheen { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .gen-progress-fill { transition: none; }
+  .gen-progress-fill.is-live { animation: none; background: var(--accent); }
+}
+
+/* The second way in: one space from a written description. Same panel, because
+   it is the same pipeline with a different steer — putting it in a panel of its
+   own would imply a second mechanism, and the thing worth understanding here is
+   that there is only one. */
+.gen-divider { border-top: 1px solid var(--border); margin: 22px 0 16px; }
+.gen-brief {
+  font: inherit; font-size: 12.5px; line-height: 1.55; width: 100%; box-sizing: border-box;
+  padding: 9px 11px; resize: vertical; min-height: 78px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text-primary);
+}
+.gen-brief:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.gen-brief:disabled { opacity: .6; }
+.gen-brief-foot {
+  display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap;
+}
+.gen-brief-foot .gen-quiet { flex: 1; min-width: 180px; }
+.gen-go-brief { width: auto; padding: 8px 14px; }
+
+/* ---------- one space, full screen ----------
+ *
+ * The three-pane layout is right for working THROUGH the radar. It is wrong for
+ * the moment somebody reads a space: §4.9 gives the detail pane ten sections,
+ * and a 420px column is the narrowest view of the longest content here. This is
+ * the same content with the panes out of the way — and with the brief beside
+ * it, because a brief that has gone stale against its space is the thing you
+ * only notice when both are in one frame.
+ */
+.fs-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+.fs-head {
+  display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--surface-1); position: sticky; top: 0; z-index: 10;
+}
+.fs-title { min-width: 0; flex: 1 1 320px; }
+.fs-badges { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.fs-head h2 {
+  font-size: 17px; margin: 0; line-height: 1.35; letter-spacing: -.01em; max-width: 70ch;
+}
+.fs-triple { font-size: 11.5px; color: var(--text-muted); margin: 5px 0 0; }
+
+.fs-panes { display: flex; gap: 4px; flex: none; align-self: center; }
+.fs-panes button { font-size: 12.5px; padding: 6px 14px; }
+/* Colour is never the only signal (see the status tokens above): the dot has a
+   title, and the brief tab itself shows the reason in full. */
+.fs-stale-dot { color: var(--status-warn); font-size: 9px; margin-left: 6px; vertical-align: 2px; }
+.fs-panes button[aria-pressed="true"] .fs-stale-dot { color: var(--accent-ink); }
+
+.fs-help { display: flex; align-items: center; gap: 2px; align-self: center; flex: none; }
+.fs-help > span { font-size: 10.5px; color: var(--text-muted); margin-right: 4px; }
+
+.fs-enter { font-size: 11.5px; padding: 3px 9px; white-space: nowrap; }
+.fs-enter:hover { border-color: var(--accent); color: var(--accent-text); }
+.fs-exit {
+  align-self: center; flex: none; font-size: 12.5px; white-space: nowrap;
+  border-color: var(--border-strong);
+}
+.fs-exit:hover { border-color: var(--accent); color: var(--accent-text); }
+
+.fs-body { flex: 1; min-height: 0; overflow-y: auto; }
+/* A measure, not a full-bleed line. Full screen is about removing the panes,
+   not about setting §4.9's prose to 1800px — which would be a worse read than
+   the column it replaced. */
+.fs-space { max-width: 1080px; margin: 0 auto; padding: 20px; }
+.fs-body > .panel { margin: 18px; }
+/* The head is sticky and the body scrolls, so the PDF gets the rest of the
+   viewport rather than the fixed height it takes in the middle pane. */
+.fs-body .brief-frame { height: calc(100vh - 260px); min-height: 520px; }

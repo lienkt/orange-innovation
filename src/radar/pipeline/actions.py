@@ -33,12 +33,29 @@ class NextActionGenerator:
         self.db = db
         self.llm = llm
 
-    def run(self, states: tuple[str, ...] = ("active", "watchlist", "fading")) -> dict[str, Any]:
-        placeholders = ",".join("?" * len(states))
-        topics = self.db.query(
-            f"SELECT * FROM opportunity_spaces WHERE merged_into IS NULL AND state IN ({placeholders})",
-            states,
-        )
+    def run(self, states: tuple[str, ...] = ("active", "watchlist", "fading"),
+            topic_ids: list[str] | None = None) -> dict[str, Any]:
+        """Generate a next action per role, for every live topic or just `topic_ids`.
+
+        The subset form is what a targeted generation run uses: this stage is one
+        model call per topic, so re-running it across the whole radar to serve
+        five new spaces is the single most expensive thing such a run could do.
+        The subset ignores `states` deliberately — a freshly synthesised space is
+        `candidate` until scoring promotes it, and AC-03 asks for an action on
+        every topic a role can open, not only the promoted ones.
+        """
+        if topic_ids:
+            placeholders = ",".join("?" * len(topic_ids))
+            topics = self.db.query(
+                f"SELECT * FROM opportunity_spaces WHERE merged_into IS NULL AND id IN ({placeholders})",
+                tuple(topic_ids),
+            )
+        else:
+            placeholders = ",".join("?" * len(states))
+            topics = self.db.query(
+                f"SELECT * FROM opportunity_spaces WHERE merged_into IS NULL AND state IN ({placeholders})",
+                states,
+            )
         generated = 0
         fallbacks = 0
         unverified_names = 0
@@ -93,6 +110,18 @@ class NextActionGenerator:
         """
         if not isinstance(declared, list):
             return []
+
+        def norm(text: str) -> str:
+            """Compare on letters and digits only.
+
+            The real capability pool is labelled "AI / Data / Cloud experts";
+            the model writes "AI/Data/Cloud experts". Those are the same asset,
+            but a literal substring test says otherwise, so a correct action was
+            being thrown away and replaced by a template. Spacing and
+            punctuation are not evidence of invention.
+            """
+            return "".join(ch for ch in text.split(" (")[0].lower() if ch.isalnum())
+
         supplied = [a.split(" (")[0].strip().lower() for values in assets.values() for a in values]
         supplied += [o["label"].lower() for o in self.cfg.offers.get("offers", [])]
         supplied += [r["label"].lower() for r in self.cfg.references.get("named", [])]
@@ -101,12 +130,13 @@ class NextActionGenerator:
         supplied += [p["label"].lower() for p in self.cfg.assets.get("capability_pools", [])]
         supplied += ["orange", "orange business", "orange cyberdefense"]
 
+        normalised = [norm(item) for item in supplied if item]
         unverified = []
         for name in declared:
-            needle = str(name).split(" (")[0].strip().lower()
+            needle = norm(str(name))
             if len(needle) < 3:
                 continue
-            if any(needle in item or item in needle for item in supplied if item):
+            if any(needle in item or item in needle for item in normalised if item):
                 continue
             unverified.append(str(name))
         return unverified

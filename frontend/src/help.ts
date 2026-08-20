@@ -231,6 +231,20 @@ export const HELP: Record<string, HelpEntry> = {
     ],
   },
 
+  generation: {
+    title: 'Generating opportunity spaces',
+    ref: 'FR-06, §4.4, DR-03, §4.8',
+    body: [
+      'Runs the pipeline\'s **synthesis** stage on request instead of waiting for the scheduled refresh. It reasons over the theme clusters the pipeline has already built — it does not go and fetch anything. That is what makes *"the evidence does not support that many"* a real answer rather than a hang.',
+      '**The count is spaces CREATED.** A candidate that lands on a vertical × use case × technology that already exists updates that space rather than making a second one (DR-03) — that is what keeps momentum measurable across refreshes — and an update does not count towards the number you asked for.',
+      '**Vertical, domain and geography are enforced.** Every candidate is checked against them after the model replies, and anything outside is discarded rather than corrected. The prompt asks; the validator decides (§4.4.4).',
+      '**Horizon is not, and cannot be.** §4.8 derives Now / Next / Later from the signal types attached to a space, after scoring — "derived rather than judged, because derived classifications are explainable and consistent". Selecting a horizon here picks clusters carrying that kind of evidence and tells the model what to look for. Where the new spaces actually landed is reported when the run finishes.',
+      '**A shortfall is explained, not hidden.** If you ask for eight and get three, the run says which gate the others failed — outside the requested scope, rejected by the critic, no claim that survived evidence binding, near-duplicates of one another.',
+      '**Describing one in free text** takes the same path with a different steer. Your sentence is a *search brief, not evidence*: it is embedded, used to retrieve the closest corroborated signals already in the corpus, and then dropped from the factual role — every claim in the resulting space still has to cite those retrieved signals and survive the same critic and entailment checks. If nothing in the corpus is close enough, the run creates nothing and says so. That is the answer, not a failure: a space built by restating your own sentence back to you with citations that do not support it is precisely what §4.4.4 exists to prevent.',
+      'New spaces arrive as `candidate` and go through enrichment, linking, scoring, next actions, sizing and the competitive read before the run reports done. A long-form description is not generated — open the space and ask for one.',
+    ],
+  },
+
   filters: {
     title: 'Filtering',
     ref: 'AC-04, FR-12',

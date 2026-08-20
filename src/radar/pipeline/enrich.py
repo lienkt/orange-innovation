@@ -99,11 +99,24 @@ class Enricher:
 
     # -- main ---------------------------------------------------------------
 
-    def run(self, refresh_id: str, reference_date: dt.date | None = None) -> dict[str, Any]:
+    def run(self, refresh_id: str, reference_date: dt.date | None = None,
+            topic_ids: list[str] | None = None) -> dict[str, Any]:
+        """Attach corroborated signals to every live topic, or just `topic_ids`.
+
+        A newly synthesised space carries only the signals of the cluster that
+        produced it — at most fourteen, and all from one theme. Enrichment is
+        what widens that to the rest of the corpus, which is why a generation run
+        calls this before scoring, scoped to the spaces it just created.
+        """
         reference_date = reference_date or dt.date.today()
+        scope = ""
+        params: tuple = ()
+        if topic_ids:
+            scope = f" AND id IN ({','.join('?' * len(topic_ids))})"
+            params = tuple(topic_ids)
         topics = self.db.query(
             "SELECT id, vertical, use_case, technology, statement FROM opportunity_spaces "
-            "WHERE merged_into IS NULL AND state != 'rejected'"
+            f"WHERE merged_into IS NULL AND state != 'rejected'{scope}", params
         )
         if not topics:
             return {"topics": 0, "attached": 0}

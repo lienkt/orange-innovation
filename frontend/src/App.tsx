@@ -6,6 +6,8 @@ import TopicDetail from './components/TopicDetail'
 import { Board, type BoardData, type WorkflowMeta } from './components/Workflow'
 import { BarList, ChartCard, DivergenceChart, Heatmap, Kpi, StackedBar, StageFunnel } from './components/Charts'
 import { HelpButton, HelpModal } from './components/Help'
+import GenerateScreen from './components/Generate'
+import SpaceFullscreen from './components/Fullscreen'
 import ScoreExplainModal from './components/ScoreExplain'
 import { formatEur } from './components/MarketSize'
 import { api } from './api'
@@ -80,6 +82,13 @@ function initialFromUrl() {
     explain: params.get('explain'),
     role: params.get('role'),
     tab: params.get('tab') as Tab | null,
+    // A whole screen rather than a tab, so it takes the address bar the same
+    // way: "open the generator with manufacturing selected" has to survive
+    // being sent to someone.
+    generate: params.get('screen') === 'generate',
+    // ?view=full rides along with ?topic, so "read this one properly" is as
+    // shareable as the topic itself.
+    fullscreen: params.get('view') === 'full',
     sort: (params.get('sort') ?? 'rank') as SortId,
     filters,
     theme: (theme === 'dark' || theme === 'light' ? theme : 'auto') as 'auto' | 'light' | 'dark',
@@ -137,6 +146,15 @@ export default function App() {
   const [viewLoading, setViewLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(initial.topic)
   const [tab, setTab] = useState<Tab>(initial.tab ?? 'radar')
+  // The generator is a SCREEN, not a tab: it writes to the corpus rather than
+  // reading a view of it, and the filter rail beside the tabs means something
+  // different there (what to constrain generation to, not what to display), so
+  // showing them together would be two controls with one appearance.
+  const [generating, setGenerating] = useState(initial.generate)
+  // Reading one space with nothing else on screen. Distinct from the `detail`
+  // TAB, which is the responsive fallback below 1080px and still sits inside
+  // the layout: this replaces the layout, and it carries the brief with it.
+  const [fullscreen, setFullscreen] = useState(initial.fullscreen)
   const [whitespace, setWhitespace] = useState<Topic[]>([])
   const [whitespaceTotal, setWhitespaceTotal] = useState(0)
   const [coverage, setCoverage] = useState<Coverage | null>(null)
@@ -169,13 +187,15 @@ export default function App() {
   // tab from the top of the document to get back.
   const filterToggleRef = useRef<HTMLButtonElement | null>(null)
   const detailRestoreRef = useRef<HTMLButtonElement | null>(null)
-  const pendingFocus = useRef<'filters' | 'detail' | null>(null)
+  const fullscreenRef = useRef<HTMLButtonElement | null>(null)
+  const pendingFocus = useRef<'filters' | 'detail' | 'fullscreen' | null>(null)
 
   useEffect(() => {
     if (pendingFocus.current === 'filters') filterToggleRef.current?.focus()
     if (pendingFocus.current === 'detail') detailRestoreRef.current?.focus()
+    if (pendingFocus.current === 'fullscreen') fullscreenRef.current?.focus()
     pendingFocus.current = null
-  }, [layout.filtersCollapsed, layout.detailHidden])
+  }, [layout.filtersCollapsed, layout.detailHidden, fullscreen])
   // The list view carries only summary scores; the explanation needs the
   // stored per-component inputs, which live on the detail endpoint.
   const openExplain = useCallback((id: string) => {
@@ -257,6 +277,8 @@ export default function App() {
     selected ? params.set('topic', selected) : params.delete('topic')
     role === 'strategist' ? params.delete('role') : params.set('role', role)
     tab === 'radar' ? params.delete('tab') : params.set('tab', tab)
+    generating ? params.set('screen', 'generate') : params.delete('screen')
+    fullscreen && selected ? params.set('view', 'full') : params.delete('view')
     theme === 'auto' ? params.delete('theme') : params.set('theme', theme)
     sort === 'rank' ? params.delete('sort') : params.set('sort', sort)
     for (const key of FILTER_KEYS) {
@@ -266,7 +288,7 @@ export default function App() {
     filters.has_brief ? params.set('has_brief', '1') : params.delete('has_brief')
     const query = params.toString()
     window.history.replaceState(null, '', query ? `?${query}` : window.location.pathname)
-  }, [selected, role, tab, theme, sort, filters])
+  }, [selected, role, tab, theme, sort, filters, generating, fullscreen])
 
   useEffect(() => {
     api.meta().then(setMeta).catch((e) => setError(String(e)))
@@ -286,7 +308,10 @@ export default function App() {
       .catch((e) => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setViewLoading(false) })
     return () => { cancelled = true }
-  }, [role, filters, limit, sort])
+    // refreshKey is in here so a generation run that added spaces is reflected
+    // without a reload: the radar behind the generator is stale the moment it
+    // finishes.
+  }, [role, filters, limit, sort, refreshKey])
 
   useEffect(() => { setLimit(null) }, [role, filters, sort])
 
@@ -393,7 +418,9 @@ export default function App() {
 
   return (
     <div className="app">
-      <a className="skip-link" href="#main-pane">Skip to the topics</a>
+      {/* The target is inside the reading layout, which the generator hides —
+          a skip link that lands on a hidden element is worse than none. */}
+      {!generating && !fullscreen && <a className="skip-link" href="#main-pane">Skip to the topics</a>}
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" />
@@ -415,7 +442,8 @@ export default function App() {
         <div className="tabs" role="group" aria-label="View">
           {([...(compact ? ['detail' as Tab] : []), 'radar', 'list', 'brief', 'workflow',
              'analytics', 'whitespace', 'coverage'] as Tab[]).map((t) => (
-            <button key={t} aria-pressed={tab === t} onClick={() => setTab(t)}>
+            <button key={t} aria-pressed={tab === t && !generating && !fullscreen}
+                    onClick={() => { setTab(t); setGenerating(false); setFullscreen(false) }}>
               {t === 'whitespace' ? 'White space' : t[0].toUpperCase() + t.slice(1)}
             </button>
           ))}
@@ -432,13 +460,55 @@ export default function App() {
                 onClick={() => setHelp('weight_set')}>
           {meta.weight_set}
         </button>
+        <button className="generate-btn"
+                onClick={() => { setGenerating(true); setFullscreen(false) }}
+                aria-pressed={generating}
+                title="Synthesise more opportunity spaces from the evidence already collected">
+          Generate
+        </button>
         <button onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark')}
                 title="Theme">
           {theme === 'auto' ? '◐' : theme === 'dark' ? '☾' : '☀'}
         </button>
       </header>
 
-      <div className="layout" ref={layoutRef}
+      {generating && (
+        <GenerateScreen
+          meta={meta}
+          onClose={() => setGenerating(false)}
+          onHelp={setHelp}
+          // Opening a space from the generator means leaving it — the point of
+          // the link is to read the space in the radar, not beside the form.
+          onOpenTopic={(id) => {
+            setSelected(id)
+            setGenerating(false)
+            if (compact) setTab('detail')
+          }}
+          onGenerated={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      {fullscreen && selected && (
+        <SpaceFullscreen
+          topicId={selected}
+          topic={selectedTopic}
+          role={role}
+          meta={meta}
+          workflowMeta={wfMeta}
+          refreshKey={refreshKey}
+          rank={selectedRank >= 0 ? selectedRank + 1 : undefined}
+          onChanged={() => setRefreshKey((k) => k + 1)}
+          onHelp={setHelp}
+          onExplain={setExplaining}
+          onClose={() => {
+            // Leaving destroys the control that was focused, so focus goes back
+            // to the button that opened it rather than to <body>.
+            pendingFocus.current = 'fullscreen'
+            setFullscreen(false)
+          }} />
+      )}
+
+      <div className="layout" ref={layoutRef} hidden={generating || (fullscreen && Boolean(selected))}
            data-detail={detailHidden ? 'hidden' : undefined}
            style={{
              ['--filters-w' as any]: `${layout.filtersCollapsed ? FILTERS_COLLAPSED : FILTERS_WIDTH}px`,
@@ -640,6 +710,13 @@ export default function App() {
                 <span className="sub">
                   The window is too narrow for a side pane, so the detail is here instead.
                 </span>
+                <span className="spacer" />
+                {selected && (
+                  <button className="fs-enter" onClick={() => setFullscreen(true)}
+                          title="Read this space with the other panes out of the way, with its brief alongside">
+                    <span aria-hidden>⤢</span> Display in full screen
+                  </button>
+                )}
               </div>
               <div className="panel-body">
                 <TopicDetail topicId={selected} role={role} meta={meta}
@@ -765,7 +842,7 @@ export default function App() {
               </div>
 
               <div className="chart-grid">
-                <ChartCard help="heatmap" onHelp={setHelp} title="Where the topics are"
+                <ChartCard help="heatmap" onHelp={setHelp} wide title="Where the topics are"
                            note="Vertical × domain. Magnitude on a grid, so a sequential single-hue ramp — blue, because orange already encodes right-to-win elsewhere and reusing it would imply the same quantity. Outlined cells carry an evidence gap. Empty cells are the white space.">
                   {gridData && <Heatmap grid={gridData} onSelect={(vertical, domain) => {
                     // Both coordinates, not one: clicking "Manufacturing ×
@@ -919,6 +996,13 @@ export default function App() {
                       pendingFocus.current = 'detail'
                       setLayout((c) => ({ ...c, detailHidden: true }))
                     }}>»</button>
+            {selected && (
+              <button className="fs-enter" ref={fullscreenRef}
+                      onClick={() => setFullscreen(true)}
+                      title="Read this space with the other panes out of the way, with its brief alongside">
+                <span aria-hidden>⤢</span> Display in full screen
+              </button>
+            )}
             <span className="spacer" />
             <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Help</span>
             <HelpButton topic="attractiveness" onOpen={setHelp} label="A" />

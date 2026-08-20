@@ -168,13 +168,28 @@ OUTPUT — a single JSON object:
 
 
 def synthesis_user_prompt(cluster: dict[str, Any], target_cells: list[dict[str, str]] | None = None,
-                          lens: str | None = None) -> str:
+                          lens: str | None = None, constraints: list[str] | None = None,
+                          brief: str | None = None) -> str:
     """Evidence block (§4.4.2 element 3), optionally targeted at empty grid cells.
 
     `lens` steers one generation pass toward a particular kind of evidence.
     §4.4.3: an open-ended loop "elaborates around whatever it produced first",
     so several passes over the same cluster need different starting points to
     explore rather than paraphrase.
+
+    `constraints` are the operator's bounds from the Generate screen, already
+    phrased by the caller. They are stated LAST and as hard rules, because they
+    narrow the answer rather than steering it — and every one of them that can
+    be checked is checked again after the model replies (§4.4.4: the prompt asks,
+    the validator decides).
+
+    `brief` is a written description of the opportunity somebody is looking for.
+    It appears AFTER the evidence and is explicitly demoted to a request rather
+    than a fact, because the failure mode it invites is the one §4.4.4 defence 1
+    exists to stop: a model handed a plausible sentence and a pile of documents
+    will happily assert the sentence and cite the documents. The evidence block
+    stays the only factual material, and the brief only says which part of it to
+    look at.
     """
     lines = [
         f"THEME CLUSTER {cluster['cluster_id']}: {cluster.get('label') or '(unlabelled)'}",
@@ -204,6 +219,32 @@ def synthesis_user_prompt(cluster: dict[str, Any], target_cells: list[dict[str, 
         lines += [
             f"  - {c['vertical']} x {c['use_case']} x {c['technology']}" for c in target_cells[:10]
         ]
+
+    if brief:
+        lines += [
+            "",
+            "WHAT THE USER IS LOOKING FOR — this is a REQUEST, not evidence.",
+            "It came from a person typing a sentence. Nothing in it is a fact you may",
+            "assert or cite. Use it only to decide which part of the evidence above to",
+            "reason from, and to judge whether that evidence supports a space of this",
+            "kind at all.",
+            "",
+            f"    \"{brief}\"",
+            "",
+            "If the evidence above does not support an opportunity space along these",
+            "lines, return an empty candidate list. Do NOT restate the request as though",
+            "the evidence established it — that is the single failure this pipeline is",
+            "built to prevent. Produce AT MOST ONE candidate.",
+        ]
+
+    if constraints:
+        lines += [
+            "",
+            "REQUESTED SCOPE — a candidate outside this is discarded, not corrected.",
+            "Producing nothing is the right answer if this cluster's evidence does not",
+            "support anything inside it. Do not stretch a candidate to fit.",
+        ]
+        lines += constraints
 
     if lens:
         lines += ["", f"THIS PASS'S LENS: {lens}",
