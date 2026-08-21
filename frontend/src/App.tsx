@@ -935,8 +935,8 @@ export default function App() {
                 <h2>Coverage</h2>
                 <HelpButton topic="coverage" onOpen={setHelp} />
                 <span className="sub">
-                  Language and geography coverage, measured rather than assumed — anglophone and
-                  EU bias is a known risk in a corpus like this.
+                  Language, geography and competitor coverage, measured rather than assumed —
+                  anglophone and EU bias is a known risk in a corpus like this.
                 </span>
               </div>
               <div className="panel-body">
@@ -963,6 +963,82 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {coverage.competitors && (() => {
+                  const c = coverage.competitors!
+                  const profiled = c.by_status.profiled ?? 0
+                  const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0)
+                  return (
+                    <div className="cov-competitors">
+                      <h3>Competitive picture</h3>
+                      <p className="cov-sub">
+                        Three separate gaps, reported together because they compound: a written
+                        comparison over a space whose competitors are mostly unread is thinner
+                        than the same comparison elsewhere.
+                      </p>
+
+                      <div className="cov-bars">
+                        <div>
+                          <div className="cov-bar-head">
+                            <span>Register read from their own sites</span>
+                            <strong>{profiled} / {c.register_total}</strong>
+                          </div>
+                          <div className="cov-bar">
+                            <span style={{ width: `${pct(profiled, c.register_total)}%` }} />
+                          </div>
+                          <p className="cov-note">{c.pages_read.toLocaleString()} pages · register {c.register_version}</p>
+                        </div>
+                        <div>
+                          <div className="cov-bar-head">
+                            <span>Spaces with a competitive intensity</span>
+                            <strong>{c.topics_assessed} / {c.topics_total}</strong>
+                          </div>
+                          <div className="cov-bar">
+                            <span style={{ width: `${pct(c.topics_assessed, c.topics_total)}%` }} />
+                          </div>
+                          <p className="cov-note">
+                            {c.topics_total - c.topics_assessed} spaces show an empty competitor tab —
+                            a processing gap, not a finding
+                          </p>
+                        </div>
+                        <div>
+                          <div className="cov-bar-head">
+                            <span>Spaces with a written comparison</span>
+                            <strong>{c.topics_written} / {c.topics_analysed}</strong>
+                          </div>
+                          <div className="cov-bar">
+                            <span style={{ width: `${pct(c.topics_written, c.topics_analysed || 1)}%` }} />
+                          </div>
+                          <p className="cov-note">costs one model call each, so it is never universal</p>
+                        </div>
+                      </div>
+
+                      {Object.keys(c.unread_named).length > 0 && (
+                        <div className="cov-unread">
+                          <h4>Competitors whose published position is unread</h4>
+                          {Object.entries(c.unread_named).map(([status, names]) => (
+                            <p key={status}>
+                              <span className="tag">{status.replace('_', ' ')}</span>
+                              {' '}{names.join(' · ')}
+                              {status === 'blocked' && (
+                                <span className="cov-note">
+                                  {' '}— these sites refuse automated clients. Recorded rather than
+                                  worked around, so their absence is visible instead of silent.
+                                </span>
+                              )}
+                              {status === 'no_pages' && (
+                                <span className="cov-note">
+                                  {' '}— fetched successfully but render their content client-side,
+                                  so nothing readable was returned.
+                                </span>
+                              )}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )}

@@ -1,7 +1,7 @@
 # Source tiering (§4.3.7, Table 22) — to be calibrated in Sprint 0.
 # Drives evidence quality (SC-04) and the discounted diversity measure (SC-03).
 # Rule (§4.3.7): no topic reaches high attractiveness on tier-4 evidence alone.
-version: "2026-08-a"
+version: "2026-08-b"
 tiers:
   1:
     label: Authoritative
@@ -50,6 +50,20 @@ publisher_overrides:
   "worldbank.org": 1
   "itu.int": 1
   "sec.gov": 1
+  # Second-tranche sources. These would inherit tier 1 from their source's
+  # `default_tier` anyway; naming them makes the tier a stated decision rather
+  # than a fallback, which is what §4.3.7 asks of every evidence class.
+  "find-tender.service.gov.uk": 1
+  "contractsfinder.service.gov.uk": 1
+  "tenderned.nl": 1
+  "boamp.fr": 1
+  "cisa.gov": 1
+  "cert-bund.de": 1
+  "ncsc.gov.uk": 1
+  "eba.europa.eu": 1
+  "esma.europa.eu": 1
+  "acer.europa.eu": 1
+  "datatracker.ietf.org": 1
 
   # Tier 2 — independent reporting
   "reuters.com": 2
@@ -72,6 +86,7 @@ publisher_overrides:
   "reddit.com": 3
   "stackoverflow.com": 3
   "github.com": 3
+  "adzuna.com": 3
 
   # Tier 4 — interested party (vendor / marketing)
   "prnewswire.com": 4

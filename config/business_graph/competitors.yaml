@@ -20,6 +20,14 @@
 # competitor in front of a customer, so ambiguous entries carry only their
 # unambiguous forms.
 
+# `website` is the entry point for the competitor profiler (`radar competitor-scrape`).
+# `scrape` records what happened rather than hiding it: `ok` means the site was
+# fetched under its own robots.txt; `blocked` means the publisher refuses
+# automated clients and we do not work around that; `unreachable` means the
+# fetch failed from our network. A blocked competitor keeps its curated fields
+# and is shown in the interface as an explicit profiling gap, on the same
+# principle as an unwired source in config/sources.yaml.
+
 version: "competitors-2026-08-a"
 owner: "innovation-radar-curator"
 as_of: "2026-08-18"
@@ -78,6 +86,8 @@ competitors:
   # ---------------- Telecom operator peers ----------------
   - id: deutsche_telekom_tsystems
     label: Deutsche Telekom / T-Systems
+    website: https://www.t-systems.com/de/en
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Deutsche Telekom", "T-Systems", "Telekom Deutschland"]
     relationship: competitor
@@ -88,6 +98,8 @@ competitors:
 
   - id: vodafone_business
     label: Vodafone Business
+    website: https://www.vodafone.com/business
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Vodafone Business", "Vodafone"]
     relationship: competitor
@@ -97,6 +109,8 @@ competitors:
 
   - id: telefonica_tech
     label: Telefónica Tech
+    website: https://telefonicatech.com/en
+    scrape: { status: blocked, reason: "403 to automated clients" }
     type: telco_peer
     aliases: ["Telefónica Tech", "Telefonica Tech", "Telefónica", "Telefonica"]
     relationship: competitor
@@ -106,6 +120,8 @@ competitors:
 
   - id: bt_business
     label: BT Business
+    website: https://business.bt.com/
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["BT Business", "BT Group"]
     relationship: competitor
@@ -114,6 +130,8 @@ competitors:
 
   - id: verizon_business
     label: Verizon Business
+    website: https://www.verizon.com/business/
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Verizon Business", "Verizon"]
     relationship: competitor
@@ -122,6 +140,8 @@ competitors:
 
   - id: swisscom
     label: Swisscom
+    website: https://www.swisscom.ch/en/business.html
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Swisscom"]
     relationship: competitor
@@ -130,6 +150,8 @@ competitors:
 
   - id: proximus
     label: Proximus
+    website: https://www.proximus.be/en/business/
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Proximus"]
     relationship: competitor
@@ -138,6 +160,8 @@ competitors:
 
   - id: telia_company
     label: Telia Company
+    website: https://www.teliacompany.com/en
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Telia Company", "Telia"]
     relationship: competitor
@@ -146,6 +170,8 @@ competitors:
 
   - id: colt_technology
     label: Colt Technology Services
+    website: https://www.colt.net/
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Colt Technology Services", "Colt Technology"]
     relationship: competitor
@@ -154,6 +180,8 @@ competitors:
 
   - id: lumen_technologies
     label: Lumen Technologies
+    website: https://www.lumen.com/en-us/home.html
+    scrape: { status: ok }
     type: telco_peer
     aliases: ["Lumen Technologies", "Lumen"]
     relationship: competitor
@@ -163,6 +191,8 @@ competitors:
   # ---------------- Hyperscalers ----------------
   - id: microsoft_azure
     label: Microsoft
+    website: https://azure.microsoft.com/en-us
+    scrape: { status: ok }
     type: hyperscaler
     aliases: ["Microsoft", "Azure", "Microsoft Azure"]
     relationship: both
@@ -173,6 +203,8 @@ competitors:
 
   - id: aws_cloud
     label: AWS
+    website: https://aws.amazon.com/
+    scrape: { status: ok }
     type: hyperscaler
     aliases: ["AWS", "Amazon Web Services"]
     relationship: both
@@ -182,6 +214,8 @@ competitors:
 
   - id: google_cloud_platform
     label: Google Cloud
+    website: https://cloud.google.com/
+    scrape: { status: ok }
     type: hyperscaler
     aliases: ["Google Cloud", "Google Cloud Platform"]
     relationship: both
@@ -192,6 +226,8 @@ competitors:
   # ---------------- Global systems integrators ----------------
   - id: accenture
     label: Accenture
+    website: https://www.accenture.com/be-en
+    scrape: { status: ok }
     type: global_si
     aliases: ["Accenture"]
     relationship: competitor
@@ -201,6 +237,8 @@ competitors:
 
   - id: capgemini
     label: Capgemini
+    website: https://www.capgemini.com/
+    scrape: { status: ok }
     type: global_si
     aliases: ["Capgemini", "Sogeti", "Odigo"]
     relationship: competitor
@@ -211,6 +249,8 @@ competitors:
 
   - id: atos_eviden
     label: Atos / Eviden
+    website: https://eviden.com/
+    scrape: { status: ok }
     type: global_si
     aliases: ["Atos", "Eviden", "Bull"]
     relationship: competitor
@@ -220,6 +260,8 @@ competitors:
 
   - id: sopra_steria
     label: Sopra Steria
+    website: https://www.soprasteria.com/
+    scrape: { status: ok }
     type: global_si
     aliases: ["Sopra Steria"]
     relationship: competitor
@@ -229,6 +271,8 @@ competitors:
 
   - id: ibm_consulting
     label: IBM
+    website: https://www.ibm.com/consulting
+    scrape: { status: ok }
     type: global_si
     aliases: ["IBM", "Red Hat"]
     relationship: competitor
@@ -238,6 +282,8 @@ competitors:
 
   - id: ntt_data
     label: NTT DATA
+    website: https://www.nttdata.com/global/en/
+    scrape: { status: ok }
     type: global_si
     aliases: ["NTT DATA", "NTT Ltd"]
     relationship: competitor
@@ -246,6 +292,8 @@ competitors:
 
   - id: dxc_technology
     label: DXC Technology
+    website: https://dxc.com
+    scrape: { status: ok }
     type: global_si
     aliases: ["DXC Technology"]
     relationship: competitor
@@ -254,6 +302,8 @@ competitors:
 
   - id: tcs
     label: Tata Consultancy Services
+    website: https://www.tcs.com/
+    scrape: { status: blocked, reason: "403 to automated clients" }
     type: global_si
     aliases: ["Tata Consultancy Services", "TCS"]
     relationship: competitor
@@ -262,6 +312,8 @@ competitors:
 
   - id: infosys
     label: Infosys
+    website: https://www.infosys.com/
+    scrape: { status: blocked, reason: "403 to automated clients" }
     type: global_si
     aliases: ["Infosys"]
     relationship: competitor
@@ -271,6 +323,8 @@ competitors:
   # ---------------- Security specialists ----------------
   - id: thales_cyber
     label: Thales
+    website: https://cpl.thalesgroup.com/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["Thales"]
     relationship: competitor
@@ -281,6 +335,8 @@ competitors:
 
   - id: palo_alto_networks_comp
     label: Palo Alto Networks
+    website: https://www.paloaltonetworks.com/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["Palo Alto Networks"]
     relationship: both
@@ -290,6 +346,8 @@ competitors:
 
   - id: fortinet_comp
     label: Fortinet
+    website: https://www.fortinet.com/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["Fortinet"]
     relationship: both
@@ -299,6 +357,8 @@ competitors:
 
   - id: crowdstrike
     label: CrowdStrike
+    website: https://www.crowdstrike.com/en-us/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["CrowdStrike"]
     relationship: competitor
@@ -307,6 +367,8 @@ competitors:
 
   - id: zscaler_comp
     label: Zscaler
+    website: https://www.zscaler.com/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["Zscaler"]
     relationship: both
@@ -316,6 +378,8 @@ competitors:
 
   - id: airbus_protect
     label: Airbus Protect
+    website: https://www.airbus-protect.com/
+    scrape: { status: unreachable, reason: "TLS handshake failure" }
     type: security_specialist
     aliases: ["Airbus Protect", "Airbus Defence and Space", "Airbus CyberSecurity"]
     relationship: competitor
@@ -325,6 +389,8 @@ competitors:
 
   - id: nomios
     label: Nomios
+    website: https://www.nomios.com/
+    scrape: { status: ok }
     type: regional_integrator
     aliases: ["Nomios"]
     relationship: competitor
@@ -333,6 +399,8 @@ competitors:
 
   - id: id_quantique
     label: ID Quantique
+    website: https://www.idquantique.com/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["ID Quantique", "IDQuantique"]
     relationship: competitor
@@ -341,6 +409,8 @@ competitors:
 
   - id: entrust
     label: Entrust
+    website: https://www.entrust.com/
+    scrape: { status: blocked, reason: "403 to automated clients" }
     type: security_specialist
     aliases: ["Entrust"]
     relationship: competitor
@@ -350,6 +420,8 @@ competitors:
   # ---------------- Network equipment vendors ----------------
   - id: nokia
     label: Nokia
+    website: https://www.nokia.com/
+    scrape: { status: ok }
     type: network_vendor
     aliases: ["Nokia"]
     relationship: competitor
@@ -360,6 +432,8 @@ competitors:
 
   - id: ericsson
     label: Ericsson
+    website: https://www.ericsson.com/en
+    scrape: { status: ok }
     type: network_vendor
     aliases: ["Ericsson"]
     relationship: competitor
@@ -368,6 +442,8 @@ competitors:
 
   - id: cisco_comp
     label: Cisco
+    website: https://www.cisco.com/
+    scrape: { status: blocked, reason: "403 to automated clients" }
     type: network_vendor
     aliases: ["Cisco"]
     relationship: both
@@ -377,6 +453,8 @@ competitors:
 
   - id: huawei_comp
     label: Huawei
+    website: https://www.huawei.com/en/
+    scrape: { status: ok }
     type: network_vendor
     aliases: ["Huawei"]
     relationship: both
@@ -386,6 +464,8 @@ competitors:
 
   - id: hpe_aruba
     label: HPE (Aruba, Athonet)
+    website: https://www.hpe.com/us/en/home.html
+    scrape: { status: unreachable, reason: "read timeout from this network" }
     type: network_vendor
     aliases: ["HPE Aruba", "Aruba Networks", "Athonet", "Hewlett Packard Enterprise"]
     relationship: both
@@ -395,6 +475,8 @@ competitors:
 
   - id: boldyn_networks
     label: Boldyn Networks
+    website: https://www.boldyn.com/
+    scrape: { status: ok }
     type: network_vendor
     aliases: ["Boldyn Networks", "Boldyn"]
     relationship: competitor
@@ -405,6 +487,8 @@ competitors:
   # ---------------- Sovereign cloud ----------------
   - id: ovhcloud
     label: OVHcloud
+    website: https://www.ovhcloud.com/en/
+    scrape: { status: ok }
     type: cloud_sovereign
     aliases: ["OVHcloud", "OVH"]
     relationship: competitor
@@ -414,6 +498,8 @@ competitors:
 
   - id: scaleway
     label: Scaleway
+    website: https://www.scaleway.com/en/
+    scrape: { status: ok }
     type: cloud_sovereign
     aliases: ["Scaleway"]
     relationship: competitor
@@ -422,6 +508,8 @@ competitors:
 
   - id: ionos
     label: IONOS
+    website: https://www.ionos.com/
+    scrape: { status: ok }
     type: cloud_sovereign
     aliases: ["IONOS"]
     relationship: competitor
@@ -430,6 +518,8 @@ competitors:
 
   - id: outscale
     label: Dassault Systèmes / 3DS Outscale
+    website: https://en.outscale.com/
+    scrape: { status: ok }
     type: cloud_sovereign
     aliases: ["Outscale", "3DS Outscale", "Dassault Systèmes"]
     relationship: competitor
@@ -440,6 +530,8 @@ competitors:
   # ---------------- Industrial and OT specialists ----------------
   - id: siemens
     label: Siemens
+    website: https://www.siemens.com/en-us/
+    scrape: { status: ok }
     type: industrial_specialist
     aliases: ["Siemens"]
     relationship: competitor
@@ -450,6 +542,8 @@ competitors:
 
   - id: schneider_electric
     label: Schneider Electric
+    website: https://www.se.com/ww/en/
+    scrape: { status: ok }
     type: industrial_specialist
     aliases: ["Schneider Electric"]
     relationship: competitor
@@ -459,6 +553,8 @@ competitors:
 
   - id: bosch
     label: Bosch
+    website: https://www.bosch.com/
+    scrape: { status: ok }
     type: industrial_specialist
     aliases: ["Bosch"]
     relationship: competitor
@@ -468,6 +564,8 @@ competitors:
 
   - id: honeywell
     label: Honeywell
+    website: https://www.honeywell.com/us/en
+    scrape: { status: ok }
     type: industrial_specialist
     aliases: ["Honeywell"]
     relationship: competitor
@@ -477,6 +575,8 @@ competitors:
 
   - id: ptc_thingworx
     label: PTC (ThingWorx)
+    website: https://www.ptc.com/en
+    scrape: { status: ok }
     type: industrial_specialist
     aliases: ["ThingWorx", "PTC Inc"]
     relationship: competitor
@@ -485,6 +585,8 @@ competitors:
 
   - id: actility
     label: Actility
+    website: https://www.actility.com/
+    scrape: { status: ok }
     type: industrial_specialist
     aliases: ["Actility"]
     relationship: competitor
@@ -494,6 +596,8 @@ competitors:
   # ---------------- Data and AI platforms ----------------
   - id: palantir
     label: Palantir
+    website: https://www.palantir.com/
+    scrape: { status: ok }
     type: data_ai_specialist
     aliases: ["Palantir"]
     relationship: competitor
@@ -503,6 +607,8 @@ competitors:
 
   - id: databricks
     label: Databricks
+    website: https://www.databricks.com/
+    scrape: { status: ok }
     type: data_ai_specialist
     aliases: ["Databricks"]
     relationship: competitor
@@ -511,6 +617,8 @@ competitors:
 
   - id: snowflake
     label: Snowflake
+    website: https://www.snowflake.com/en/
+    scrape: { status: ok }
     type: data_ai_specialist
     aliases: ["Snowflake"]
     relationship: competitor
@@ -519,6 +627,8 @@ competitors:
 
   - id: dataiku
     label: Dataiku
+    website: https://www.dataiku.com/
+    scrape: { status: ok }
     type: data_ai_specialist
     aliases: ["Dataiku"]
     relationship: competitor
@@ -527,6 +637,8 @@ competitors:
 
   - id: mistral_ai
     label: Mistral AI
+    website: https://mistral.ai/
+    scrape: { status: ok }
     type: data_ai_specialist
     aliases: ["Mistral AI"]
     relationship: competitor
@@ -537,6 +649,8 @@ competitors:
   # ---------------- Customer experience ----------------
   - id: salesforce
     label: Salesforce
+    website: https://www.salesforce.com/eu/?ir=1
+    scrape: { status: ok }
     type: cx_specialist
     aliases: ["Salesforce"]
     relationship: competitor
@@ -545,6 +659,8 @@ competitors:
 
   - id: genesys_comp
     label: Genesys
+    website: https://www.genesys.com/
+    scrape: { status: ok }
     type: cx_specialist
     aliases: ["Genesys"]
     relationship: both
@@ -554,6 +670,8 @@ competitors:
 
   - id: nice_comp
     label: NiCE
+    website: https://www.nice.com/
+    scrape: { status: ok }
     type: cx_specialist
     aliases: ["NICE Ltd", "NiCE inContact", "NICE CXone"]
     relationship: both
@@ -564,6 +682,8 @@ competitors:
   # ---------------- Satellite ----------------
   - id: starlink
     label: SpaceX Starlink
+    website: https://starlink.com/business
+    scrape: { status: ok }
     type: satellite_operator
     aliases: ["Starlink", "SpaceX"]
     relationship: competitor
@@ -573,6 +693,8 @@ competitors:
 
   - id: eutelsat_oneweb
     label: Eutelsat OneWeb
+    website: https://www.eutelsat.com/
+    scrape: { status: ok }
     type: satellite_operator
     aliases: ["Eutelsat OneWeb", "OneWeb", "Eutelsat"]
     relationship: competitor
@@ -581,6 +703,8 @@ competitors:
 
   - id: marlink
     label: Marlink
+    website: https://marlink.com/
+    scrape: { status: ok }
     type: satellite_operator
     aliases: ["Marlink"]
     relationship: competitor
@@ -591,6 +715,8 @@ competitors:
   # ---------------- Counter-drone and physical security ----------------
   - id: dedrone_axon
     label: Dedrone by Axon
+    website: https://www.dedrone.com/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["Dedrone", "Axon"]
     relationship: competitor
@@ -600,6 +726,8 @@ competitors:
 
   - id: hensoldt
     label: HENSOLDT
+    website: https://www.hensoldt.net/
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["HENSOLDT"]
     relationship: competitor
@@ -609,6 +737,8 @@ competitors:
 
   - id: leonardo
     label: Leonardo
+    website: https://www.leonardo.com/en/home
+    scrape: { status: ok }
     type: security_specialist
     aliases: ["Leonardo S.p.A", "Leonardo SpA"]
     relationship: competitor
@@ -619,6 +749,8 @@ competitors:
   # ---------------- Regional integrators ----------------
   - id: computacenter
     label: Computacenter
+    website: https://www.computacenter.com/
+    scrape: { status: ok }
     type: regional_integrator
     aliases: ["Computacenter"]
     relationship: competitor
@@ -627,6 +759,8 @@ competitors:
 
   - id: bechtle
     label: Bechtle
+    website: https://www.bechtle.com/de-en
+    scrape: { status: ok }
     type: regional_integrator
     aliases: ["Bechtle"]
     relationship: competitor
@@ -635,6 +769,8 @@ competitors:
 
   - id: econocom
     label: Econocom
+    website: https://www.econocom.com/en
+    scrape: { status: ok }
     type: regional_integrator
     aliases: ["Econocom"]
     relationship: competitor
@@ -643,6 +779,8 @@ competitors:
 
   - id: spie_ics
     label: SPIE ICS
+    website: https://www.spie.fr/fr/nos-filiales/spie-ics
+    scrape: { status: ok }
     type: regional_integrator
     aliases: ["SPIE ICS"]
     relationship: competitor

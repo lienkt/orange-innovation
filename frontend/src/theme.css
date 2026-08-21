@@ -386,10 +386,22 @@ body[data-resizing="true"] { cursor: col-resize; user-select: none; }
 
 /* ---------- filters ---------- */
 
-.filter-group { margin-bottom: 18px; }
+/* A rule between each group, not around each one: the rail is one list of
+   questions, and boxing every group would imply they are separate controls
+   rather than one filter. The first group has no rule above it, so the rail
+   does not open with a line under the pane header. */
+.filter-group { margin-bottom: 16px; }
+/* `~`, not `+`: the match summary and the Clear button sit between the Search
+   group and Horizon, so an adjacent-sibling rule would miss the first divider.
+   A general sibling matches every group that has one before it — which is
+   exactly "all but the first". */
+.filter-group ~ .filter-group {
+  border-top: 1px solid var(--border); padding-top: 14px;
+}
 .filter-group h3 {
   font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
   color: var(--text-muted); margin: 0 0 8px;
+  display: flex; align-items: center; gap: 6px;
 }
 .filter-list { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow-y: auto; }
 .filter-item {
@@ -492,7 +504,23 @@ body[data-resizing="true"] { cursor: col-resize; user-select: none; }
   font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
   color: var(--text-muted); margin: 0 0 8px;
   padding-bottom: 5px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
 }
+
+/* ---------- section icons ----------
+ *
+ * Decoration, never information. Each one sits beside a heading that already
+ * says what the section is, takes `currentColor` so it follows the muted
+ * heading colour in both themes, and is `aria-hidden` so a screen reader is not
+ * told everything twice. `flex: none` because a long heading must eat the
+ * space, not the mark that labels it.
+ */
+.sec-icon { width: 14px; height: 14px; flex: none; opacity: .85; }
+.nav-icon { width: 12px; height: 12px; flex: none; margin-right: 4px; opacity: .8; }
+.detail-nav button { display: inline-flex; align-items: center; }
+/* The jump bar is a set of destinations; the active-looking one is the hovered
+   one, and the mark should lift with the label rather than stay grey. */
+.detail-nav button:hover .nav-icon { opacity: 1; }
 .claim { margin-bottom: 10px; font-size: 13px; }
 .claim-signals { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .sig-chip {
@@ -1371,3 +1399,122 @@ table.data td.num { font-family: var(--mono); text-align: right; }
 /* The head is sticky and the body scrolls, so the PDF gets the rest of the
    viewport rather than the fixed height it takes in the middle pane. */
 .fs-body .brief-frame { height: calc(100vh - 260px); min-height: 520px; }
+
+/* ---------- competitor analysis (§4.3.3 extension) ----------
+ *
+ * Three registers, three visual weights, because the reader has to be able to
+ * tell them apart without being told:
+ *   computed join   plain body type
+ *   written prose   indented, on a tinted ground
+ *   differentiation the strongest treatment on the pane — it is the sentence
+ *                   that gets repeated in a meeting, so it gets the accent rule
+ *                   and the reader's eye.
+ */
+.ca-pane { max-width: 900px; }
+.ca-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; margin-bottom: 10px;
+}
+.ca-head h4 { margin: 0 0 4px; font-size: 15px; }
+.ca-coverage { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; }
+.ca-coverage .ca-gap { color: var(--status-warn, #a06000); }
+.ca-muted { font-size: 11px; color: var(--text-muted); margin: 2px 0; }
+.ca-notice {
+  font-size: 11.5px; color: var(--text-secondary); background: var(--surface-1);
+  border: 1px dashed var(--border-strong); border-radius: 6px; padding: 8px 10px;
+  margin: 8px 0 12px;
+}
+.ca-error { font-size: 12px; color: var(--status-bad, #a82820); }
+.ca-empty { font-size: 12.5px; color: var(--text-secondary); max-width: 620px; }
+
+.ca-field {
+  border-left: 3px solid var(--border-strong); padding: 2px 0 2px 12px;
+  margin: 4px 0 16px;
+}
+.ca-field h5, .ca-block h5 {
+  margin: 0 0 3px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600;
+}
+.ca-field p { margin: 0; font-size: 12.5px; }
+
+.ca-entry {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 10px; background: var(--surface-2);
+}
+.ca-entry[data-basis="evidenced"] { border-left: 3px solid var(--accent); }
+.ca-entry-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px; flex-wrap: wrap;
+}
+.ca-entry-head > div { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.ca-name { font-size: 13.5px; font-weight: 600; }
+.ca-site { font-size: 10.5px; color: var(--text-muted); }
+.ca-positioning { font-size: 12px; color: var(--text-secondary); margin: 6px 0; }
+.ca-unread {
+  font-size: 11.5px; color: var(--status-warn, #a06000);
+  background: var(--surface-1); border-radius: 5px; padding: 5px 8px; margin: 6px 0;
+}
+.ca-block { margin: 8px 0 0; }
+.ca-block p { margin: 0; font-size: 12.5px; }
+.ca-cite { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+
+/* The differentiation paragraph. Accent rule and tinted ground, because this is
+   the one paragraph on the pane a salesperson is going to reuse verbatim. */
+.ca-diff {
+  border-left: 3px solid var(--accent); background: var(--surface-1);
+  border-radius: 0 6px 6px 0; padding: 8px 10px; margin-top: 10px;
+}
+.ca-diff h5 { color: var(--accent-text); }
+.ca-diff p { font-size: 13px; }
+.ca-assets { font-size: 10.5px; color: var(--text-muted); margin-top: 5px; }
+.ca-concession { opacity: 0.85; }
+.ca-concession p { font-size: 12px; font-style: italic; }
+
+.ca-entry details { margin-top: 8px; }
+.ca-entry summary { font-size: 11px; color: var(--text-muted); cursor: pointer; }
+.ca-claims { margin: 6px 0 0 16px; padding: 0; }
+.ca-claims li { font-size: 12px; margin-bottom: 3px; }
+.ca-stripped { margin-top: 12px; }
+.ca-stripped summary { font-size: 11px; color: var(--text-muted); cursor: pointer; }
+.ca-stripped li { font-size: 11.5px; }
+.ca-provenance {
+  margin-top: 14px; font-size: 10.5px; color: var(--text-muted);
+  border-top: 1px solid var(--border); padding-top: 6px;
+}
+
+/* An incomplete brief is not a stale one, so it does not borrow the stale
+   colour. Stale is a warning about age; incomplete is a statement that a
+   section is absent and only a rebuild will add it. */
+.incomplete-note {
+  border: 1px solid var(--accent); border-left: 3px solid var(--accent);
+  background: var(--surface-1); border-radius: 6px; padding: 9px 12px;
+  font-size: 12px; color: var(--text-primary);
+}
+.incomplete-note ul { margin: 5px 0 8px 18px; padding: 0; }
+.incomplete-note li { font-size: 11.5px; color: var(--text-secondary); }
+.incomplete-note button { margin-top: 2px; }
+
+/* ---------- competitor coverage ---------- */
+.cov-competitors { margin-top: 26px; border-top: 1px solid var(--border); padding-top: 16px; }
+.cov-competitors h3 { font-size: 13px; margin: 0 0 3px; }
+.cov-sub { font-size: 11.5px; color: var(--text-muted); margin: 0 0 14px; max-width: 640px; }
+.cov-bars {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px;
+}
+.cov-bar-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px; font-size: 11.5px; margin-bottom: 4px;
+}
+.cov-bar-head strong { font-family: var(--mono); font-size: 12px; }
+.cov-bar {
+  height: 6px; border-radius: 3px; background: var(--surface-0);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.cov-bar > span { display: block; height: 100%; background: var(--accent); }
+.cov-note { font-size: 10.5px; color: var(--text-muted); margin: 4px 0 0; }
+.cov-unread { margin-top: 18px; }
+.cov-unread h4 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); margin: 0 0 6px;
+}
+.cov-unread p { font-size: 11.5px; margin: 0 0 5px; }

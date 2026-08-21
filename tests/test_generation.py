@@ -207,6 +207,76 @@ def test_the_cluster_budget_scales_with_the_request(cfg, db):
 
 
 # ---------------------------------------------------------------------------
+# "It keeps giving me spaces that already exist"
+#
+# §4.4.5 makes the taxonomy triple the canonical identity, so a candidate on an
+# occupied cell updates the space that owns it (DR-03) and creates nothing. That
+# is right on a refresh and is not an answer to "find me five more", so the run
+# has to notice, say so, and ask again.
+# ---------------------------------------------------------------------------
+
+def test_the_prompt_names_the_cells_that_are_already_taken(cfg, db):
+    """The model cannot avoid a collision it was never told about. Stated as
+    cells rather than statements, because the cell is what identity is defined
+    on."""
+    from radar.pipeline import prompts
+    text = prompts.synthesis_user_prompt(
+        {"cluster_id": 1, "label": "x", "keyphrases": "[]", "signals": []},
+        avoid=["manufacturing x predictive_maintenance x machine_learning"],
+    )
+    assert "ALREADY IN THE RADAR" in text
+    assert "manufacturing x predictive_maintenance x machine_learning" in text
+    assert "return an empty list" in text, "an exhausted cluster must still be allowed to say nothing"
+
+
+def test_the_up_front_avoid_list_is_narrowed_by_the_request(cfg, db):
+    """With a vertical selected the in-scope list is short and every entry is a
+    cell the model is likely to propose. Unconstrained it would be the whole
+    radar, which costs more input than the evidence it protects — so nothing is
+    sent and the retry does the work instead."""
+    _space(db, "OS800", index=0)
+    _space(db, "OS801", index=1)
+    taken = Synthesiser(cfg, db, LLMClient(provider="mock"))._live_triples()
+
+    unconstrained = Synthesiser(cfg, db, LLMClient(provider="mock"))
+    assert unconstrained._scoped_taken(taken) == []
+
+    scoped = synth_with(cfg, db, verticals=("manufacturing",))
+    assert len(scoped._scoped_taken(taken)) == 2
+    assert all(cell.startswith("manufacturing x") for cell in scoped._scoped_taken(taken))
+
+    elsewhere = synth_with(cfg, db, verticals=("energy",))
+    assert elsewhere._scoped_taken(taken) == []
+
+
+def test_a_candidate_on_an_occupied_cell_does_not_satisfy_the_request(cfg, db):
+    """The bug behind the complaint: the round stopped once enough CANDIDATES
+    had been accepted, so three that all landed on occupied cells satisfied the
+    count, ended the round and created nothing."""
+    _seed_clusters(db)          # the cited SIG-1 has to exist for the attachment
+    _space(db, "OS800", index=0)
+    synth = Synthesiser(cfg, db, LLMClient(provider="mock"))
+    taken = synth._live_triples()
+    assert ("manufacturing", "predictive_maintenance", "machine_learning") in taken
+    stats = SynthesisStats()
+    # The cell is occupied, so persisting a candidate on it updates rather than
+    # creates — which is what the counter the loop reads has to reflect.
+    synth._persist([make()], "R-1", stats)
+    assert stats.created_ids == []
+    assert stats.updated_ids == ["OS800"]
+
+
+def test_the_retry_is_bounded_so_a_covered_corpus_cannot_multiply_the_bill(cfg, db):
+    """NFR-10 makes inference cost a reported quantity. A corpus whose every
+    theme is already covered would otherwise spend the per-cluster retry
+    allowance on each of a hundred clusters to discover, correctly, that there
+    is nothing new."""
+    synth = Synthesiser(cfg, db, LLMClient(provider="mock"))
+    assert synth.DUPLICATE_RETRIES == 2
+    assert synth.AVOID_LIMIT == 40
+
+
+# ---------------------------------------------------------------------------
 # DR-03: created and updated are different events
 # ---------------------------------------------------------------------------
 
@@ -395,6 +465,29 @@ def test_the_count_is_bounded(cfg, db):
         service.start(0, GenerationConstraints())
     with pytest.raises(ValueError):
         service.start(MAX_PER_RUN + 1, GenerationConstraints())
+
+
+def test_a_deployment_without_the_encoder_says_so_instead_of_failing_a_run(cfg, db, monkeypatch):
+    """The Azure serving package ships without sentence-transformers on purpose
+    (it pulls torch). The read path never needed it; generation does, both to
+    deduplicate candidates and to retrieve evidence for a written brief against
+    the stored 384-dimensional vectors. Accepting the request and failing at the
+    deduplication step with an import error is the wrong way to find out."""
+    import importlib.util
+    real = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, "find_spec",
+                        lambda name, *a, **k: None if name == "sentence_transformers"
+                        else real(name, *a, **k))
+    _seed_clusters(db)
+    service = GenerationService(cfg, db)
+    readiness = service.readiness()
+    assert readiness["ready"] is False
+    assert "cannot generate" in readiness["reason"]
+    assert readiness["clusters"] == 3, "the corpus is fine; the encoder is what is missing"
+    with pytest.raises(ValueError, match="cannot generate"):
+        service.start(1, GenerationConstraints())
+    with pytest.raises(ValueError, match="cannot generate"):
+        service.start_from_brief("Acoustic gearbox monitoring for offshore wind operators.")
 
 
 def test_a_run_without_clusters_reports_why_rather_than_returning_zero(cfg, db):

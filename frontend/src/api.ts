@@ -1,5 +1,5 @@
 import type {
-  BriefMeta, Competition, Coverage, FilterState, GenerationConstraints, GenerationJob,
+  BriefMeta, Competition, CompetitorAnalysis, Coverage, FilterState, GenerationConstraints, GenerationJob,
   GenerationMatch, GenerationOptions, MarketSize, Meta, RadarView, Topic, TopicDescription,
 } from './types'
 
@@ -89,6 +89,15 @@ export const api = {
   marketSize: (id: string) => get<{ topic_id: string; estimates: MarketSize[] }>(`/topics/${id}/market-size`),
 
   competition: (id: string) => get<Competition>(`/topics/${id}/competition`),
+
+  /** The structural join is computed server-side on first read; only the written
+   *  comparison needs the POST below. */
+  competitorAnalysis: (id: string) => get<CompetitorAnalysis>(`/topics/${id}/competitor-analysis`),
+
+  recomputeCompetition: (id: string) => post<Competition>(`/topics/${id}/competition`),
+
+  generateCompetitorAnalysis: (id: string, force = false) =>
+    post<CompetitorAnalysis>(`/topics/${id}/competitor-analysis${force ? '?force=true' : ''}`),
 
   /** §4.3.4 reference data vintage — the UI shows how old the denominators are. */
   referenceData: () => get<{ count: number; series: Record<string, any>[] }>('/reference-data'),

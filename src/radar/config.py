@@ -282,6 +282,14 @@ class Config:
         self.personas = Vocabulary("personas", _load_yaml("taxonomy", "personas.yaml"))
         self.signal_types = Vocabulary("signal_types", _load_yaml("taxonomy", "signal_types.yaml"))
 
+        # FR-28 / Table 36. The vocabularies above are English, and the relevance
+        # gate is built from them, so without this the pipeline collects French,
+        # German and Dutch text and then discards it for not containing English
+        # words. Kept as its own file rather than as `synonyms_xx` keys on every
+        # item so a translator can review one document (§4.5.2's reviewability
+        # argument, applied to language rather than to crosswalks).
+        self.lexicon = _load_yaml("taxonomy", "lexicon.yaml")
+
         self.offers = _load_yaml("business_graph", "offers.yaml")
         self.references = _load_yaml("business_graph", "references.yaml")
         self.assets = _load_yaml("business_graph", "assets.yaml")
@@ -388,6 +396,30 @@ class Config:
 
     def enabled_sources(self) -> list[dict[str, Any]]:
         return [s for s in self.sources["sources"] if s.get("enabled")]
+
+    @property
+    def lexicon_languages(self) -> list[str]:
+        return list(self.lexicon.get("languages") or [])
+
+    def lexicon_terms(self, languages: list[str] | None = None) -> set[str]:
+        """Every non-English gate term, optionally restricted to some languages.
+
+        Returned flat rather than per-language because the gate does not know an
+        item's language when it scores it — detection runs at stage 2 and is
+        itself unreliable on short titles (the first corpus recorded languages
+        `ge` and `ng`). Matching against the union is the honest behaviour: a
+        French term appearing in an English article is still a vocabulary hit.
+        """
+        wanted = set(languages) if languages else None
+        terms: set[str] = set()
+        for per_language in self.lexicon.get("terms", {}).values():
+            for language, values in (per_language or {}).items():
+                if wanted is None or language in wanted:
+                    terms.update(str(v).lower() for v in values or ())
+        for language, values in (self.lexicon.get("general") or {}).items():
+            if wanted is None or language in wanted:
+                terms.update(str(v).lower() for v in values or ())
+        return terms
 
     def tier_weight(self, tier: int) -> float:
         return float(self.source_tiers["tiers"][tier]["weight"])
@@ -524,6 +556,27 @@ class Config:
                 problems.append(f"{where}: unknown partner {entry['partner_id']!r}")
             if not entry.get("aliases"):
                 problems.append(f"{where}: no aliases, so no evidence can ever match it")
+
+        # The lexicon keys the vocabularies by id, so a renamed use case would
+        # silently take its whole non-English term set out of the gate.
+        known_ids = (
+            set(self.use_cases.ids) | set(self.technologies.ids)
+            | set(self.verticals.ids) | set(self.domains.ids)
+        )
+        declared_languages = set(self.lexicon.get("languages") or [])
+        if not declared_languages:
+            problems.append("lexicon: no languages declared")
+        for vocab_id, per_language in (self.lexicon.get("terms") or {}).items():
+            if vocab_id not in known_ids:
+                problems.append(f"lexicon/terms: unknown vocabulary id {vocab_id!r}")
+            for language in (per_language or {}):
+                if language not in declared_languages:
+                    problems.append(
+                        f"lexicon/terms/{vocab_id}: language {language!r} is not in `languages`"
+                    )
+        for language in (self.lexicon.get("general") or {}):
+            if language not in declared_languages:
+                problems.append(f"lexicon/general: language {language!r} is not in `languages`")
 
         for vert_id in self.strategy.get("privileged_verticals", {}):
             if vert_id not in self.verticals:

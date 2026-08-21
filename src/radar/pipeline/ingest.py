@@ -26,6 +26,7 @@ from ..config import Config
 from ..connectors import CollectedItem, HttpSession, build_connector
 from ..db import Database, js
 from ..llm import LLMClient
+from .query_grid import expand_source_params
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class IngestStats:
     new_signals: int = 0
     duplicates: int = 0
     undated_rejected: int = 0
+    malformed: int = 0
     gated_out: int = 0
     per_source: dict[str, int] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
@@ -51,10 +53,19 @@ class IngestStats:
             "new_signals": self.new_signals,
             "duplicates": self.duplicates,
             "undated_rejected": self.undated_rejected,
+            "malformed": self.malformed,
             "gated_out": self.gated_out,
             "per_source": self.per_source,
             "errors": self.errors,
         }
+
+
+def _is_storable(item: CollectedItem) -> bool:
+    """Every field bound into SQL must be a string by the time it gets here."""
+    return (isinstance(item.url, (str, type(None)))
+            and isinstance(item.publisher, str)
+            and isinstance(item.title, str)
+            and isinstance(item.extract, str))
 
 
 class Ingestor:
@@ -103,6 +114,10 @@ class Ingestor:
 
         jobs: list[tuple[dict[str, Any], Any, int]] = []
         for source in sources:
+            # NFR-11: resolve `queries_from_taxonomy` / `cpv_from_taxonomy` into
+            # literal params here, so connectors never need a Config and stay
+            # testable on a params dict alone.
+            source = expand_source_params(self.cfg, source)
             connector = build_connector(source, self.session, self.max_extract)
             if connector is None:
                 continue
@@ -157,6 +172,20 @@ class Ingestor:
                 # backtest computation downstream.
                 if item.published_at is None:
                     stats.undated_rejected += 1
+                    continue
+
+                # A connector that yields a non-string where a string belongs
+                # must not be able to abort the refresh. This is not
+                # hypothetical: TenderNed returns `link` as an object rather
+                # than a URL, and one such row raised out of the whole collect
+                # stage AFTER all 33 sources had been fetched — discarding
+                # thousands of items that were already in hand. Fetch failures
+                # were already isolated per source (see `collect`); the store
+                # path had no equivalent guard, so it has one now.
+                if not _is_storable(item):
+                    log.warning("%s yielded an unstorable item (url=%r, publisher=%r) — skipped",
+                                item.source_id, type(item.url).__name__, type(item.publisher).__name__)
+                    stats.malformed += 1
                     continue
 
                 content_hash = item.content_hash()
@@ -249,6 +278,12 @@ class Ingestor:
             terms.update(m.lower() for m in ambition.get("markers", []))
         for axis in self.cfg.domains.raw.get("cross_cutting", []):
             terms.update(m.lower() for m in axis.get("markers", []))
+        # FR-28. Everything above is English, and a term scoring zero here is
+        # dropped before the model ever sees it — so an English-only gate does
+        # not merely rank non-English signals lower, it deletes them. The first
+        # live corpus made that visible: French signals averaged 0.06 relevance
+        # against 0.26 for English, and 52% never received a signal type at all.
+        terms.update(self.cfg.lexicon_terms())
         # Drop very short tokens that would match everything.
         return {t for t in terms if len(t) >= 4}
 

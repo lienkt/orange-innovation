@@ -21,11 +21,14 @@ SQLite is used because the graph is small — thousands of nodes, not millions
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+
+log = logging.getLogger(__name__)
 
 #: SQLite's journal mode, overridable per deployment.
 #:
@@ -477,7 +480,93 @@ CREATE TABLE IF NOT EXISTS internal_signals (
     moderated       INTEGER NOT NULL DEFAULT 0,
     signal_id       TEXT REFERENCES signals(id)
 );
+
+-- ---------------------------------------------------------------------------
+-- Competitor profiling (§4.3.3 extension).
+--
+-- The curated register in config/business_graph/competitors.yaml says what a
+-- competitor sells, as a Sprint 0 curation deliverable. These tables hold what
+-- the competitor SAYS it sells, taken from its own published pages.
+--
+-- That is a weaker kind of evidence and is treated as such everywhere: a
+-- vendor's own site is TIER 4, it is capped in evidence quality like any other
+-- interested party, and SC-09's guarantee -- vendor-only evidence scores low --
+-- is untouched by any of this. What a profile is allowed to do is SEED
+-- generation (the competitor-move lens in synthesis) and EXPLAIN a competitor
+-- already matched to a topic. It may not lift a score.
+--
+-- DR-08 applies exactly as it does to signals: URL plus a bounded extract,
+-- never a mirror of the page.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS competitor_pages (
+    id              TEXT PRIMARY KEY,          -- sha256 of competitor_id + url
+    competitor_id   TEXT NOT NULL,             -- register id; not an FK, the register is config
+    url             TEXT NOT NULL,
+    kind            TEXT NOT NULL,             -- home | solution | industry | product | customer_story | other
+    title           TEXT,
+    extract         TEXT NOT NULL,             -- bounded text (DR-08)
+    lang            TEXT,
+    content_hash    TEXT NOT NULL,
+    fetched_at      TEXT NOT NULL,
+    http_status     INTEGER,
+    pipeline_version TEXT NOT NULL,
+    UNIQUE (competitor_id, url)
+);
+CREATE INDEX IF NOT EXISTS idx_cpages_competitor ON competitor_pages(competitor_id, kind);
+
+-- One profile per competitor, regenerated when its page corpus moves.
+-- `claims` carries every statement with the page ids that support it, on the
+-- same evidence-binding rule as synthesis: an uncited claim is stripped.
+CREATE TABLE IF NOT EXISTS competitor_profiles (
+    competitor_id   TEXT PRIMARY KEY,
+    generated_at    TEXT NOT NULL,
+    status          TEXT NOT NULL,             -- profiled | blocked | unreachable | no_pages
+    status_reason   TEXT,
+    positioning     TEXT,                      -- what they say they are, in one paragraph
+    claims          TEXT NOT NULL DEFAULT '[]',-- JSON [{claim, pages:[page ids]}]
+    verticals       TEXT NOT NULL DEFAULT '[]',-- JSON, closed vocabulary
+    technologies    TEXT NOT NULL DEFAULT '[]',-- JSON, closed vocabulary
+    use_cases       TEXT NOT NULL DEFAULT '[]',-- JSON, closed vocabulary
+    named_offers    TEXT NOT NULL DEFAULT '[]',-- JSON [{name, pages:[...]}] -- their product names
+    stripped        TEXT NOT NULL DEFAULT '[]',-- JSON: what evidence binding removed, and why
+    pages_used      INTEGER NOT NULL DEFAULT 0,
+    corpus_hash     TEXT,                      -- staleness: changes when the page set changes
+    register_version TEXT NOT NULL,
+    prompt_version  TEXT,
+    model_version   TEXT,
+    pipeline_version TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cprofiles_status ON competitor_profiles(status);
+
+-- Per-topic competitive analysis: the structural join between a topic and the
+-- profiles of the competitors already matched to it by competition.py, plus an
+-- optional written comparison. The join is arithmetic and always present; only
+-- the narrative costs a model call, so it is capped and generated on demand in
+-- the same way descriptions are.
+CREATE TABLE IF NOT EXISTS topic_competitor_analysis (
+    opportunity_id  TEXT PRIMARY KEY REFERENCES opportunity_spaces(id) ON DELETE CASCADE,
+    computed_at     TEXT NOT NULL,
+    topic_version   INTEGER NOT NULL,          -- staleness, as for descriptions and briefs
+    entries         TEXT NOT NULL DEFAULT '[]',-- JSON: per competitor, what their own pages say about this cell
+    narrative       TEXT,                      -- JSON {section: {text, pages:[...]}} or NULL when ungenerated
+    stripped        TEXT NOT NULL DEFAULT '[]',
+    coverage        TEXT NOT NULL DEFAULT '{}',-- JSON: profiled / blocked / unprofiled counts behind this view
+    register_version TEXT NOT NULL,
+    prompt_version  TEXT,
+    model_version   TEXT,
+    pipeline_version TEXT NOT NULL
+);
 """
+
+#: Columns added after the first release. SQLite's CREATE TABLE IF NOT EXISTS
+#: silently leaves an existing table alone, so a new column in SCHEMA above
+#: never reaches a database that already exists. Each entry is applied only when
+#: the column is absent, which makes `init_schema` safe to run repeatedly and
+#: safe to run against the deployed copy.
+MIGRATIONS: list[tuple[str, str, str]] = [
+    # (table, column, DDL fragment)
+    ("topic_briefs", "brief_schema", "TEXT"),
+]
 
 
 class Database:
@@ -516,9 +605,31 @@ class Database:
             # '{}' JSON defaults, so an f-string schema does not survive
             # contact with it.
             conn.executescript(SCHEMA.replace("__JOURNAL_MODE__", JOURNAL_MODE))
+            self._apply_migrations(conn)
             conn.commit()
         finally:
             conn.close()
+
+    @staticmethod
+    def _apply_migrations(conn: sqlite3.Connection) -> None:
+        """Add columns that post-date a database's creation.
+
+        `CREATE TABLE IF NOT EXISTS` silently leaves an existing table alone, so
+        a column added to SCHEMA never reaches a database that already exists.
+        This is additive and idempotent — no rewrite, no data movement — which
+        is what makes it safe to run against the deployed file, where the
+        feedback, assessments and briefs the pipeline never saw are the entire
+        reason that file is not simply recreated.
+        """
+        for table, column, ddl in MIGRATIONS:
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone():
+                continue
+            cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                log.info("Migration: adding %s.%s", table, column)
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
     # -- helpers -----------------------------------------------------------
 

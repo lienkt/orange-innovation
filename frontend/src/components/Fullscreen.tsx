@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import BriefView from './Brief'
+import CompetitorAnalysisPanel from './CompetitorAnalysis'
 import TopicDetail from './TopicDetail'
 import type { WorkflowMeta } from './Workflow'
 import { HelpButton } from './Help'
@@ -19,9 +20,13 @@ import type { Meta, Topic } from '../types'
  * gets sent to a customer, and the reason to put them one click apart is that
  * the second is generated from the first and goes stale when it moves. Reading
  * them in the same frame is how anyone notices.
+ *
+ * The competitor tab is the third view of the same subject: what everyone else
+ * is doing in it. It sits between the two because that is the order the
+ * questions arrive — what is this, who else is here, what do I send.
  */
 
-type Pane = 'space' | 'brief'
+type Pane = 'space' | 'competitors' | 'brief'
 
 interface Props {
   topic: Topic | null
@@ -96,6 +101,10 @@ export default function SpaceFullscreen({
 
         <div className="fs-panes" role="group" aria-label="View">
           <button aria-pressed={pane === 'space'} onClick={select('space')}>Opportunity space</button>
+          <button aria-pressed={pane === 'competitors'} onClick={select('competitors')}
+                  title="What each competitor on this space is doing, and how Orange differentiates against each of them">
+            Competitors
+          </button>
           <button aria-pressed={pane === 'brief'} onClick={select('brief')}>
             Sales brief
             {/* The one fact worth carrying onto the tab itself: a brief built
@@ -120,7 +129,7 @@ export default function SpaceFullscreen({
       </div>
 
       <div className="fs-body">
-        {pane === 'space' ? (
+        {pane === 'space' && (
           <div className="fs-space">
             <TopicDetail topicId={topicId} role={role} meta={meta}
                          workflowMeta={workflowMeta}
@@ -131,9 +140,13 @@ export default function SpaceFullscreen({
                          onOpenBrief={() => setPane('brief')}
                          rank={rank} />
           </div>
-        ) : (
-          <BriefView topic={topic} onHelp={onHelp} />
         )}
+        {pane === 'competitors' && (
+          <div className="fs-space">
+            <CompetitorAnalysisPanel topicId={topicId} refreshKey={refreshKey} onHelp={onHelp} />
+          </div>
+        )}
+        {pane === 'brief' && <BriefView topic={topic} onHelp={onHelp} />}
       </div>
     </div>
   )

@@ -1,3 +1,6 @@
+import {
+  IconBuilding, IconClock, IconDoc, IconGlobe, IconLayers, IconPerson, IconSearch, IconVenn,
+} from './Icons'
 import type { FilterState, Meta } from '../types'
 import { EMPTY_FILTERS } from '../types'
 
@@ -26,7 +29,7 @@ interface Props {
 }
 
 function MultiSelect({
-  title, items, selected, onToggle, counts, hint,
+  title, items, selected, onToggle, counts, hint, icon: Icon,
 }: {
   title: string
   items: { id: string; label: string }[]
@@ -34,13 +37,19 @@ function MultiSelect({
   onToggle: (id: string) => void
   counts?: Record<string, number>
   hint?: string
+  /** Decoration for the group heading. The heading is the accessible name —
+   *  the icon is `aria-hidden` and never the only thing that says what this is. */
+  icon?: (props: { className?: string }) => JSX.Element
 }) {
   // A value that matches nothing is still shown, greyed, rather than hidden:
   // "there are none of these" is information, and a list that silently changes
   // length as you filter is disorienting.
   return (
     <div className="filter-group">
-      <h3 title={hint}>{title}{selected.length > 0 && ` · ${selected.length}`}</h3>
+      <h3 title={hint}>
+        {Icon && <Icon />}
+        {title}{selected.length > 0 && ` · ${selected.length}`}
+      </h3>
       <div className="filter-list">
         {items.map((item) => {
           // An explicit 0 rather than a blank: a missing count reads as "this
@@ -82,7 +91,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
   return (
     <>
       <div className="filter-group">
-        <h3>Search</h3>
+        <h3><IconSearch />Search</h3>
         <input
           className="search-input"
           type="search"
@@ -104,6 +113,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
 
       <MultiSelect
         title="Horizon"
+        icon={IconClock}
         items={meta.horizons.map((h) => ({ id: h, label: h.toUpperCase() }))}
         selected={filters.horizon}
         onToggle={toggle('horizon')}
@@ -111,6 +121,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
       />
       <MultiSelect
         title="Competition"
+        icon={IconVenn}
         hint="How crowded the field is (§4.3.3) — named competitors, scored"
         items={(meta.competition_levels ?? [{ id: 'none' }, { id: 'low' }, { id: 'medium' }, { id: 'high' }])
           .map((level) => ({ id: level.id, label: level.id.toUpperCase() }))}
@@ -120,7 +131,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
       />
 
       <div className="filter-group">
-        <h3>Ready to sell</h3>
+        <h3><IconDoc />Ready to sell</h3>
         <label className="filter-item">
           <input type="checkbox" checked={filters.has_brief}
                  onChange={() => onChange({ ...filters, has_brief: !filters.has_brief })} />
@@ -131,6 +142,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
 
       <MultiSelect
         title="Vertical"
+        icon={IconBuilding}
         items={meta.verticals}
         selected={filters.vertical}
         onToggle={toggle('vertical')}
@@ -138,6 +150,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
       />
       <MultiSelect
         title="Domain"
+        icon={IconLayers}
         items={meta.domains}
         selected={filters.domain}
         onToggle={toggle('domain')}
@@ -145,6 +158,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
       />
       <MultiSelect
         title="Persona"
+        icon={IconPerson}
         items={meta.personas}
         selected={filters.persona}
         onToggle={toggle('persona')}
@@ -153,6 +167,7 @@ export default function Filters({ meta, filters, onChange, geographies, facets, 
       {geographies.length > 0 && (
         <MultiSelect
           title="Geography"
+          icon={IconGlobe}
           items={geographies.map((g) => ({ id: g, label: g }))}
           selected={filters.geography}
           onToggle={toggle('geography')}

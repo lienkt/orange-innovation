@@ -8,7 +8,7 @@
 # NFR-07 / DR-08: every enabled source must have `terms_checked` set before it
 # runs in anything other than a prototype. `terms_checked: pending` is a Sprint 0
 # action, not an assertion that the terms permit use.
-version: "2026-08-a"
+version: "2026-08-b"
 
 sources:
 
@@ -21,14 +21,33 @@ sources:
     default_tier: 2
     terms_checked: pending
     cadence_days: 1
-    # GDELT rate-limits aggressively (HTTP 429). One request per 6s keeps a
-    # multi-query refresh inside its budget without triggering backoff.
-    rate_limit_seconds: 6
+    # GDELT rate-limits aggressively and applies a LONG per-IP cooldown once it
+    # starts answering 429. Its request budget is queries x slices, and the
+    # first run at 27 queries x 7 slices (189 requests) tripped the circuit
+    # breaker and returned nothing at all — worse than the 281 items the old
+    # unsliced config produced.
+    #
+    # THE TRADE-OFF IS EXPLICIT. GDELT cannot afford both breadth and depth
+    # here. Depth wins: §4.6 momentum is the slope over six trailing periods and
+    # an unsliced GDELT has a 14-day memory, which makes its slope an artefact
+    # of the result-set length rather than a measurement. So the window is
+    # sliced coarsely (3 x 30 days) and the query list is cut to match —
+    # 20 queries x 3 slices = 60 requests, roughly a third of what failed.
+    #
+    # GDELT is worth this care: it is the only source with real publisher
+    # diversity per signal (153 distinct publishers from 281 items) and the only
+    # geo-tagged news in the corpus.
+    rate_limit_seconds: 8
     params:
-      # Queries are built from the taxonomy grid at runtime; these are the seed
-      # themes for the first tranche.
       max_records: 60
-      timespan: "14d"
+      window_slice_days: 30
+      geographies: []
+      # NFR-11: the vocabulary is the control surface. These literal seeds are
+      # kept because they encode boolean qualifiers the vocabulary cannot.
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '"{term}" AND (enterprise OR industrial OR deployment)'
+        max_queries: 5
       queries:
         - '"private 5G" AND (manufacturing OR factory OR industrial)'
         - '"OT security" OR "industrial cybersecurity"'
@@ -59,6 +78,14 @@ sources:
       hl: "en-GB"
       gl: "GB"
       ceid: "GB:en"
+      # §2.6: a query-driven feed declares its own market, so the geography of
+      # what it returns is knowable without asking. 1,004 of these signals were
+      # stored with none.
+      geographies: [GB]
+      queries_from_taxonomy:
+        vocabularies: [use_cases, technologies]
+        template: '{term} enterprise deployment'
+        max_queries: 30
       queries:
         - "private 5G manufacturing deployment"
         - "NIS2 compliance deadline enterprise"
@@ -100,6 +127,14 @@ sources:
       hl: "fr-FR"
       gl: "FR"
       ceid: "FR:fr"
+      geographies: [FR]
+      # Drawn from the French half of config/taxonomy/lexicon.yaml, which is
+      # also what now lets these signals survive the relevance gate at all.
+      queries_from_taxonomy:
+        vocabularies: [use_cases, technologies]
+        language: fr
+        template: '{term} entreprise'
+        max_queries: 24
       queries:
         - "5G privé industrie déploiement"
         - "cybersécurité NIS2 conformité entreprise"
@@ -129,7 +164,17 @@ sources:
     params:
       endpoint: "https://www.bing.com/news/search"
       query_param: "q"
-      extra_params: {format: "RSS"}
+      extra_params: {format: "RSS", mkt: "en-GB"}
+      # Every link arrives as a bing.com/news/apiclick.aspx redirect. Stored
+      # raw, all 76 items booked ONE publisher — for the source added precisely
+      # because SC-03 measures diversity across publishers — and the stored URL
+      # was a redirect where NFR-02 wants a citable source. The destination is
+      # already in the query string, so unwrapping costs no extra request.
+      unwrap_redirects: true
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term} enterprise'
+        max_queries: 16
       queries:
         - "private 5G enterprise deployment"
         - "OT security manufacturing"
@@ -141,6 +186,158 @@ sources:
         - "remote patient monitoring connectivity"
         - "SD-WAN network modernisation"
         - "NIS2 DORA compliance deadline"
+
+  # Orange operates in 65 countries; the first corpus was EU and UK, and Poland
+  # was its single largest represented geography (802 signals) purely because
+  # TED's CPV roots happened to match Polish notices. The connector is already
+  # parameterised by market, so widening coverage is configuration rather than
+  # code — and each of these draws its queries from the matching half of
+  # config/taxonomy/lexicon.yaml, without which the gate would delete the lot.
+  - id: google_news_de
+    label: Google News RSS (German)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "de-DE"
+      gl: "DE"
+      ceid: "DE:de"
+      geographies: [DE]
+      queries_from_taxonomy:
+        vocabularies: [use_cases, technologies]
+        language: de
+        template: '{term} unternehmen'
+        max_queries: 20
+      queries:
+        - "NIS2 Umsetzung Unternehmen Frist"
+        - "Campusnetz 5G Industrie Betrieb"
+        - "KRITIS Betreiber Meldepflicht"
+        - "souveräne Cloud Verwaltung Deutschland"
+
+  - id: google_news_es
+    label: Google News RSS (Spanish)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "es-ES"
+      gl: "ES"
+      ceid: "ES:es"
+      geographies: [ES]
+      queries_from_taxonomy:
+        vocabularies: [use_cases, technologies]
+        language: es
+        template: '{term} empresa'
+        max_queries: 16
+      queries:
+        - "ciberseguridad infraestructura crítica España"
+        - "nube soberana administración pública"
+
+  - id: google_news_it
+    label: Google News RSS (Italian)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "it-IT"
+      gl: "IT"
+      ceid: "IT:it"
+      geographies: [IT]
+      queries_from_taxonomy:
+        vocabularies: [use_cases, technologies]
+        language: it
+        template: '{term} azienda'
+        max_queries: 16
+      queries:
+        - "cybersicurezza infrastrutture critiche Italia"
+        - "cloud sovrano pubblica amministrazione"
+
+  - id: google_news_nl
+    label: Google News RSS (Dutch)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "nl-NL"
+      gl: "NL"
+      ceid: "NL:nl"
+      geographies: [NL]
+      queries_from_taxonomy:
+        vocabularies: [use_cases, technologies]
+        language: nl
+        template: '{term} bedrijven'
+        max_queries: 16
+      queries:
+        - "cyberbeveiliging vitale infrastructuur Nederland"
+        - "digitale overheid aanbesteding"
+
+  - id: google_news_mea
+    label: Google News RSS (Middle East and Africa, English)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "en-AE"
+      gl: "AE"
+      ceid: "AE:en"
+      # Regional rather than national: the market covers the Gulf and the feed
+      # returns items from across it, so a single country code would be a
+      # narrower claim than the source supports.
+      geographies: []
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term} enterprise'
+        max_queries: 12
+      queries:
+        - "private 5G industrial deployment Middle East"
+        - "smart city platform Gulf government"
+        - "subsea cable capacity Africa enterprise"
+    note: >-
+      §2.6 and Table 36: Orange's MEA footprint is substantial and was entirely
+      absent from the first corpus, which reported EU-and-UK coverage as though
+      it were world coverage.
+
+  - id: google_news_apac
+    label: Google News RSS (Asia-Pacific, English)
+    category: signals
+    connector: rss_search
+    enabled: true
+    default_tier: 2
+    terms_checked: pending
+    cadence_days: 1
+    params:
+      endpoint: "https://news.google.com/rss/search"
+      hl: "en-SG"
+      gl: "SG"
+      ceid: "SG:en"
+      geographies: []
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term} enterprise'
+        max_queries: 12
+      queries:
+        - "private 5G manufacturing Asia deployment"
+        - "data centre sovereignty Singapore enterprise"
 
   - id: trade_press
     label: Independent trade press (Light Reading, The Register)
@@ -158,6 +355,10 @@ sources:
       feeds:
         - "https://www.lightreading.com/rss.xml"
         - "https://www.theregister.com/headlines.atom"
+    note: >-
+      Left without a declared geography deliberately. Both outlets are
+      international, so stamping one country on their items would be inventing
+      a fact rather than recovering one — the honest gap is an empty field.
 
   - id: cert_eu
     label: CERT-EU security advisories
@@ -168,6 +369,7 @@ sources:
     terms_checked: pending
     cadence_days: 3
     params:
+      geographies: [EU]
       feeds:
         - "https://cert.europa.eu/publications/security-advisories-rss"
 
@@ -180,9 +382,19 @@ sources:
     terms_checked: pending
     cadence_days: 7
     # §2.6: urgency is jurisdiction-specific, and the corpus had no UK signal.
+    #
+    # THIS SOURCE WAS SILENTLY RETURNING NOTHING. It was enabled and had never
+    # produced a single raw item — not a low yield, a zero. The feed was not
+    # broken: `report-rss-feed.xml` is a low-frequency publication feed whose
+    # newest entry was dated May 2025, so every item fell outside the refresh
+    # window and was correctly rejected. Graceful degradation (§4.12) meant a
+    # dead source cost nothing and said nothing, which is right for a refresh
+    # and wrong for a catalogue — hence the zero-yield warning now printed by
+    # `radar check`. `all-rss-feed.xml` carries same-day entries.
     params:
+      geographies: [GB]
       feeds:
-        - "https://www.ncsc.gov.uk/api/1/services/v1/report-rss-feed.xml"
+        - "https://www.ncsc.gov.uk/api/1/services/v1/all-rss-feed.xml"
 
   - id: uk_contracts
     label: UK Contracts Finder
@@ -194,6 +406,7 @@ sources:
     cadence_days: 7
     params:
       endpoint: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search"
+      geographies: [GB]
       limit_per_query: 50
       # Releases carry CPV, so UK tenders join the same crosswalk as TED.
       keywords:
@@ -217,6 +430,10 @@ sources:
       rows: 25
       since_days: 540
       mailto: "stephane@stepvda.com"
+      queries_from_taxonomy:
+        vocabularies: [technologies, use_cases]
+        template: '{term}'
+        max_queries: 20
       queries:
         - "private 5G industrial network"
         - "post-quantum cryptography migration"
@@ -334,6 +551,77 @@ sources:
       Sprint 0. CERT-FR also contributes French-language signal, which FR-28
       requires.
 
+  - id: cisa_us
+    label: CISA advisories and alerts (United States)
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: "US federal government work — public domain"
+    cadence_days: 7
+    params:
+      geographies: [US]
+      feeds:
+        - "https://www.cisa.gov/cybersecurity-advisories/all.xml"
+    note: >-
+      The corpus had no US jurisdiction at all beyond NIST's newsroom, while
+      §2.6 makes urgency jurisdiction-specific and a large share of the OT and
+      ICS advisories that drive industrial security topics originate here.
+
+  - id: cert_bund
+    label: CERT-Bund / BSI security advisories (Germany)
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 7
+    params:
+      geographies: [DE]
+      language: de
+      feeds:
+        - "https://wid.cert-bund.de/content/public/securityAdvisory/rss"
+    note: >-
+      Germany is the largest single market in the EU corpus and had no national
+      regulator wired. BSI's own press feeds still 404 (checked 2026-08-20); the
+      CERT-Bund advisory feed is the working machine-readable route. Also
+      contributes German-language text, which the lexicon can now read.
+
+  - id: eu_financial_regulators
+    label: EBA and ESMA (DORA, financial-sector supervision)
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: "europa.eu reuse policy — open with attribution"
+    cadence_days: 7
+    params:
+      geographies: [EU]
+      feeds:
+        - "https://www.eba.europa.eu/rss.xml"
+        - "https://www.esma.europa.eu/rss.xml"
+    note: >-
+      EUR-Lex records that DORA exists; the supervisory authorities record what
+      it now requires and by when. That is the difference between a topic dated
+      by an instrument and one dated by a deadline (§4.8). EIOPA and EMA were
+      also probed on 2026-08-20 and return 404 to every documented feed path.
+
+  - id: acer_energy
+    label: ACER (EU energy regulator)
+    category: regulation
+    connector: rss_feed
+    enabled: true
+    default_tier: 1
+    terms_checked: "europa.eu reuse policy — open with attribution"
+    cadence_days: 14
+    params:
+      geographies: [EU]
+      feeds:
+        - "https://www.acer.europa.eu/rss.xml"
+    note: >-
+      Energy is the third-largest vertical by topic count (46) and had no
+      sector regulator behind it — only general news and TED notices.
+
   - id: nist
     label: NIST standards timelines
     category: regulation
@@ -363,9 +651,34 @@ sources:
       # so a single broad query returns only the oldest day in the window.
       # The window is sliced instead; each slice contributes its own notices,
       # which is what makes the procurement volume series honest (§4.6 momentum).
-      window_slice_days: 14
-      limit_per_slice: 20
-      # CPV roots drawn from the use-case vocabulary's `cpv` hints.
+      window_slice_days: 30
+      limit_per_slice: 25
+      #
+      # PRECISION, NOT VOLUME. The hand-written groups below are CPV ROOTS:
+      # 72000000 (IT services) alone matched 785,215 notices in one 90-day
+      # window, of which 415 were sampled. Sampling a fraction of a percent of a
+      # set that broad is not coverage — TED became 52% of the corpus while
+      # passing only 33% of the relevance gate and attaching to a topic 8% of
+      # the time. The instinct is to raise the cap; that buys more of the least
+      # useful signal in the system.
+      #
+      # `cpv_from_taxonomy` instead builds one group per use case from the `cpv`
+      # hints the vocabulary already carries. The result sets are narrow enough
+      # for a 25-notice sample to represent honestly, and the group label
+      # becomes a use-case id, which is worth more downstream than "IT services".
+      # Request budget is deliberately held flat: 30 groups x 3 slices against
+      # the previous 14 x 7.
+      cpv_from_taxonomy:
+        # Codes are zero-padded to the eight digits TED's query parser requires
+        # (see _normalise_cpv); this floor only excludes hints too broad to be
+        # worth a group of their own.
+        min_code_digits: 8
+        max_groups: 30
+      # Small disclosed contracts are procurement records, not market signals.
+      # Deliberately asymmetric — see TedConnector._below_value_floor: a notice
+      # that discloses NO value is never dropped, because roughly a third of TED
+      # discloses none and the large framework agreements disclose least often.
+      min_value_eur: 50000
       cpv_groups:
         - {label: "IT services", cpv: ["72000000"]}
         - {label: "Network and telecom", cpv: ["32400000", "64200000"]}
@@ -411,7 +724,87 @@ sources:
         - "plateforme données"
         - "objets connectés"
         - "sécurité des systèmes d'information"
-    note: "Extends procurement coverage below the EU threshold (§4.3.3) and adds French-language buying signals (FR-28)."
+    note: >-
+      Extends procurement coverage below the EU threshold (§4.3.3) and adds
+      French-language buying signals (FR-28). Its yield was the worst of any
+      source in the first corpus — 289 collected, 23 past the relevance gate,
+      10 attached to a topic — not because the connector was wrong but because
+      every subject line is French and the gate was English. That is fixed in
+      config/taxonomy/lexicon.yaml rather than here.
+
+  - id: find_a_tender
+    label: UK Find a Tender Service (above threshold)
+    category: procurement
+    connector: ocds_releases
+    enabled: true
+    default_tier: 1
+    terms_checked: "Open Government Licence v3.0 — confirm attribution wording in Sprint 0"
+    cadence_days: 3
+    params:
+      endpoint: "https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages"
+      notice_url_template: "https://www.find-tender.service.gov.uk/Notice/{ocid}"
+      publisher: "find-tender.service.gov.uk"
+      geographies: [GB]
+      limit_per_page: 100
+      max_pages: 10
+      # OCDS release packages carry CPV under items[].additionalClassifications,
+      # so these join the SAME crosswalk as TED (LK-02). The API takes no
+      # keyword parameter, so subject filtering happens client-side against
+      # these prefixes and what is dropped is logged.
+      cpv_prefixes:
+        - "48"    # software
+        - "72"    # IT services
+        - "32"    # radio, telecoms and broadcasting equipment
+        - "64"    # postal and telecommunications services
+        - "35"    # security, defence and emergency equipment
+        - "38"    # laboratory, optical and precision instruments
+        - "50"    # repair and maintenance
+        - "71"    # architectural, engineering and inspection services
+        - "79"    # business and management services
+        - "80"    # education and training
+        - "90"    # environmental services
+    note: >-
+      Contracts Finder — already wired — publishes only BELOW-threshold UK
+      notices, so the entire above-threshold UK market was invisible: 63
+      Contracts Finder signals stood in for a whole jurisdiction. Find a Tender
+      is the post-Brexit replacement for TED in the UK and publishes OCDS.
+
+  - id: tenderned
+    label: TenderNed (Dutch public procurement)
+    category: procurement
+    connector: tenderned
+    enabled: true
+    default_tier: 1
+    terms_checked: pending
+    cadence_days: 7
+    params:
+      endpoint: "https://www.tenderned.nl/papi/tenderned-rs-tns/v2/publicaties"
+      geographies: [NL]
+      page_size: 100
+      max_pages: 12
+      # The API's own keyword parameters do not filter (both `trefwoord` and
+      # `zoekwoorden` return the full 145,067-record set), so the subject filter
+      # runs here against the Dutch lexicon.
+      subject_terms:
+        - cyberbeveiliging
+        - informatiebeveiliging
+        - netwerk
+        - telecommunicatie
+        - datacenter
+        - cloud
+        - kunstmatige intelligentie
+        - digitalisering
+        - sensoren
+        - camerabewaking
+        - werkplek
+        - dataplatform
+        - applicatiebeheer
+        - telefonie
+    note: >-
+      §4.3.3 asks for national equivalents below the EU threshold; BOAMP proved
+      the pattern for France and this is the Dutch one. It also corrects a
+      geography skew the first corpus created by accident — Poland led at 802
+      signals purely because TED's CPV roots matched Polish notices.
 
   # ---------------- Technology maturity (§4.3.5) ----------------
   - id: openalex
@@ -426,6 +819,13 @@ sources:
       endpoint: "https://api.openalex.org/works"
       per_page: 25
       since_days: 365
+      # Highest attach rate of any source in the first corpus (86%) against six
+      # hand-written queries. The limit on what it contributed was the query
+      # list, not the source.
+      queries_from_taxonomy:
+        vocabularies: [technologies, use_cases]
+        template: '{term}'
+        max_queries: 24
       queries:
         - "private 5G industrial network"
         - "federated learning industrial"
@@ -451,6 +851,12 @@ sources:
     params:
       endpoint: "http://export.arxiv.org/api/query"
       max_results: 20
+      # arXiv wants its own field syntax, which is exactly why the template
+      # lives in config rather than in the connector.
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: 'all:"{term}"'
+        max_queries: 16
       queries:
         - "all:\"network slicing\" AND all:industrial"
         - "all:\"post-quantum\" AND all:migration"
@@ -471,6 +877,10 @@ sources:
       endpoint: "https://cordis.europa.eu/api/search/results"
       num: 25
       since_days: 900
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term}'
+        max_queries: 16
       queries:
         - "private 5G industrial"
         - "post-quantum cryptography"
@@ -500,11 +910,46 @@ sources:
     params: {}
     note: >-
       §2.5: Orange's own patent activity is a leading indicator and a stronger
-      right-to-win statement than a CRM overlap count. Needs EPO OPS registration
-      or BigQuery credentials — deferred to the internal-catalogue cadence.
+      right-to-win statement than a CRM overlap count. It is also the ONLY input
+      to the `technology_ownership` weight (0.08), which therefore scores zero
+      for every topic today. The technology vocabulary already carries the CPC
+      subsets the join needs, so the mapping is designed and waiting; what is
+      missing is EPO OPS registration or BigQuery credentials, which is a
+      procurement action rather than an engineering one.
+
+  - id: ietf_datatracker
+    label: IETF Datatracker (drafts and RFCs)
+    category: technology
+    connector: ietf_datatracker
+    enabled: true
+    default_tier: 1
+    terms_checked: "IETF Trust — open, BCP 78/79"
+    cadence_days: 14
+    params:
+      endpoint: "https://datatracker.ietf.org/api/v1/doc/document/"
+      since_days: 540
+      limit_per_query: 25
+      doc_types: [draft]
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term}'
+        max_queries: 14
+      queries:
+        - "post-quantum"
+        - "network slicing"
+        - "zero trust"
+        - "certificate automation"
+        - "constrained device"
+    note: >-
+      Table 20 calls standards bodies "the most reliable way to date when a
+      network technology becomes deployable", and `standards_bodies` below tried
+      to reach five of them through an empty RSS list. IETF is the one with a
+      real machine-readable route — the Datatracker exposes an open REST API
+      over every draft and RFC, with dates — so a draft reaching RFC becomes a
+      dated horizon anchor (§4.8) rather than a press release about one.
 
   - id: standards_bodies
-    label: 3GPP, ETSI, O-RAN, IETF, GSMA
+    label: 3GPP, ETSI, O-RAN, GSMA
     category: technology
     connector: rss_feed
     enabled: false
@@ -512,7 +957,107 @@ sources:
     terms_checked: pending
     cadence_days: 30
     params: {feeds: []}
-    note: "The most reliable way to date when a network technology becomes deployable (Table 20)."
+    note: >-
+      Still dark, and now for a stated reason rather than an empty list: none of
+      these bodies publishes a feed. Probed 2026-08-20, 3GPP (`/feed`) and ETSI
+      (`?format=feed&type=rss`) both return HTML to a feed request. Reaching
+      them means parsing the 3GPP work plan (published as structured
+      spreadsheets) and the ETSI work programme, which is a scraper with terms
+      to clear, not a connector. IETF, the member of this group that does have
+      an API, has been split out above and is live.
+
+  # ---------------- Demand-side leading indicators ----------------
+  # Two sources that precede a tender rather than report it. §4.3.3 credits
+  # procurement with removing the lead-time problem; these push the lead time
+  # further back still.
+
+  - id: sec_edgar
+    label: SEC EDGAR full-text search
+    category: signals
+    connector: sec_edgar
+    enabled: true
+    default_tier: 1
+    terms_checked: "US federal government work — public domain; SEC asks for a contact User-Agent"
+    cadence_days: 7
+    params:
+      endpoint: "https://efts.sec.gov/LATEST/search-index"
+      forms: "8-K,10-K,10-Q"
+      since_days: 180
+      max_hits_per_query: 15
+      geographies: [US]
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term}'
+        max_queries: 16
+      queries:
+        - "private 5G"
+        - "post-quantum"
+        - "operational technology security"
+        - "digital product passport"
+        - "sovereign cloud"
+    note: >-
+      Named enterprises describing their own deployments in filings they are
+      legally obliged to make accurate. The first corpus carried 309
+      `market_move` signals out of 7,275, nearly all vendor announcements
+      relayed by a news outlet — the party with the least incentive to be
+      conservative. A filing is the buyer's own account, dated and attributable,
+      and the most quotable evidence a salesperson can take into a meeting
+      (FR-18).
+
+  - id: adzuna_jobs
+    label: Adzuna job postings
+    category: signals
+    connector: adzuna_jobs
+    enabled: false
+    default_tier: 3
+    terms_checked: "Adzuna API terms — free tier requires attribution; confirm in Sprint 0"
+    cadence_days: 7
+    params:
+      endpoint: "https://api.adzuna.com/v1/api/jobs"
+      countries: [gb, fr, de, nl, es]
+      results_per_page: 20
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term}'
+        max_queries: 12
+      queries:
+        - "OT security engineer"
+        - "private 5G engineer"
+        - "post-quantum cryptography"
+        - "SOC analyst"
+    note: >-
+      An enterprise hiring an OT security engineer or a private-5G RF planner
+      has committed budget months before a tender exists. Postings are dated,
+      employer-named and geo-tagged — everything the signal schema wants — and
+      almost nobody uses them for radar work. DISABLED pending ADZUNA_APP_ID and
+      ADZUNA_APP_KEY: the connector is implemented and will run the moment the
+      credentials exist. Tier 3 on purpose — a posting is recruiter copy, prone
+      to the same buzzword inflation that puts Hacker News at tier 3 (Table 17).
+
+  - id: github_repos
+    label: GitHub repository activity
+    category: technology
+    connector: github_repos
+    enabled: false
+    default_tier: 3
+    terms_checked: "GitHub REST API terms of service"
+    cadence_days: 14
+    params:
+      endpoint: "https://api.github.com/search/repositories"
+      per_page: 20
+      min_stars: 10
+      since_days: 180
+      queries_from_taxonomy:
+        vocabularies: [technologies]
+        template: '{term}'
+        max_queries: 12
+    note: >-
+      arXiv and OpenAlex measure what is being RESEARCHED; repository activity
+      measures what is being BUILT, which is a later point on the same maturity
+      curve. DISABLED pending GITHUB_TOKEN: unauthenticated search returned HTTP
+      403 on the first request from a clean IP (probed 2026-08-20), so enabling
+      it without a token would add a source that silently contributes nothing —
+      precisely the failure `ncsc_uk` demonstrated.
 
   # ---------------- Market size and adoption (§4.3.4) ----------------
   - id: eurostat_ict
@@ -538,6 +1083,32 @@ sources:
     terms_checked: "Eurostat reuse policy — open with attribution"
     cadence_days: 180
     params: {}
+
+  # ---------------- Internal evidence (§2.5) ----------------
+
+  - id: internal
+    label: Internal signal intake (conversations, RFP themes, lost deals)
+    category: internal
+    connector: none
+    enabled: false
+    default_tier: 3
+    terms_checked: "first-party — internal use, DR-09 applies"
+    cadence_days: 1
+    params: {}
+    note: >-
+      NOT FETCHED, which is why `enabled` is false and `connector` is none — it
+      is catalogued here so tiering and coverage reporting can see it, like any
+      other evidence class. Records arrive through `radar internal add`, are
+      inert until `radar internal moderate` reviews them, and reach the signal
+      store through `radar internal promote` (src/radar/internal.py).
+
+      This is the largest gap in the source catalogue and the only one that
+      cannot be closed by writing a connector. `internal_signals` was created by
+      the schema and referenced by nothing — no writer, no reader, zero rows —
+      so the one evidence class that says what Orange's own people are hearing
+      contributed nothing. Tier 3 deliberately: §4.3.7 reserves tier 1 for
+      published authoritative records, and a conversation is not one however
+      well informed.
 
   # ---------------- Foresight (§4.3.6) ----------------
   - id: ec_foresight

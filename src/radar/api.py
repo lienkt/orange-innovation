@@ -680,6 +680,100 @@ def recompute_competition(topic_id: str) -> dict[str, Any]:
     return competition_for_topic(_db, topic_id) or {}
 
 
+@app.get("/api/topics/{topic_id}/competitor-analysis")
+def competitor_analysis(topic_id: str) -> dict[str, Any]:
+    """What each competitor on this topic is doing, and how Orange differentiates.
+
+    The structural join is computed on demand when it is missing, because it is
+    arithmetic over data that already exists and making the caller press a
+    button for it would be theatre. The written comparison is not: it is a model
+    call, so it is generated only when asked for (POST below) and the response
+    says plainly whether it is present.
+    """
+    from .competitor_analysis import CompetitorAnalyst, analysis_for_topic
+
+    from .competition import competition_for_topic
+
+    if _read.topic(topic_id) is None:
+        raise HTTPException(404, f"No such topic: {topic_id}")
+    stored = analysis_for_topic(_db, topic_id)
+    if stored is None:
+        analyst = CompetitorAnalyst(_cfg, _db)
+        entries = analyst.join(topic_id)
+        if entries:
+            row = _db.query_one("SELECT * FROM opportunity_spaces WHERE id = ?", (topic_id,))
+            analyst._store(dict(row), entries, narrative=None)
+            stored = analysis_for_topic(_db, topic_id)
+    # An empty analysis has two entirely different causes and the interface has
+    # to tell them apart: competitive intensity was never computed for this
+    # space (fixable — press the button), or it was computed and matched nobody
+    # (a statement about the register). Saying the second when the first is true
+    # is a confident false claim about the market.
+    assessed = competition_for_topic(_db, topic_id) is not None
+    if stored is None:
+        return {"opportunity_id": topic_id, "entries": [], "has_narrative": False,
+                "coverage": {}, "competition_assessed": assessed}
+    stored["competition_assessed"] = assessed
+    return stored
+
+
+@app.post("/api/topics/{topic_id}/competitor-analysis")
+def generate_competitor_analysis(topic_id: str, force: bool = Query(False)) -> dict[str, Any]:
+    """Write the comparison for one topic. One model call, synchronous."""
+    from .competitor_analysis import CompetitorAnalyst, analysis_for_topic
+
+    row = _db.query_one("SELECT * FROM opportunity_spaces WHERE id = ?", (topic_id,))
+    if row is None:
+        raise HTTPException(404, f"No such topic: {topic_id}")
+    analyst = CompetitorAnalyst(_cfg, _db, llm=_llm())
+    entries = analyst.join(topic_id)
+    if not entries:
+        raise HTTPException(409, "No competitors are matched to this topic, so there is "
+                                 "nothing to compare. Run competitive intensity first.")
+    analyst.write(dict(row), entries)
+    return analysis_for_topic(_db, topic_id) or {}
+
+
+@app.get("/api/competitors")
+def competitors() -> dict[str, Any]:
+    """The register with its profiling status — including who refused to be read."""
+    from .competitor_intel import profile_coverage
+
+    rows = {r["competitor_id"]: dict(r) for r in _db.query(
+        "SELECT competitor_id, status, status_reason, positioning, pages_used, generated_at "
+        "FROM competitor_profiles")}
+    types = _cfg.competitors_raw.get("types", {})
+    out = []
+    for entry in _cfg.competitors_raw["competitors"]:
+        profile = rows.get(entry["id"], {})
+        out.append({
+            "id": entry["id"], "label": entry["label"], "type": entry.get("type"),
+            "type_label": types.get(entry.get("type"), {}).get("label", entry.get("type")),
+            "relationship": entry.get("relationship", "competitor"),
+            "website": entry.get("website"),
+            "status": profile.get("status", "unread"),
+            "status_reason": profile.get("status_reason"),
+            "positioning": profile.get("positioning"),
+            "pages_used": profile.get("pages_used", 0),
+            "profiled_at": profile.get("generated_at"),
+        })
+    return {"coverage": profile_coverage(_db, _cfg), "competitors": out}
+
+
+@app.get("/api/competitors/{competitor_id}")
+def competitor_profile(competitor_id: str) -> dict[str, Any]:
+    """One competitor's profile, with the pages every claim was taken from."""
+    from .competitor_intel import pages_for, profile_for
+
+    entry = next((e for e in _cfg.competitors_raw["competitors"] if e["id"] == competitor_id), None)
+    if entry is None:
+        raise HTTPException(404, f"No such competitor: {competitor_id}")
+    profile = profile_for(_db, competitor_id) or {"status": "unread"}
+    pages = pages_for(_db, competitor_id, 60)
+    return {"competitor": entry, "profile": profile,
+            "pages": [{k: p[k] for k in ("id", "url", "kind", "title")} for p in pages]}
+
+
 @app.get("/api/topics/{topic_id}/description")
 def description(topic_id: str) -> dict[str, Any]:
     """The generated long-form description, or 404 if none exists yet."""

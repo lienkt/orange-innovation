@@ -46,6 +46,7 @@ from reportlab.platypus import (BaseDocTemplate, Flowable, Frame, KeepTogether, 
                                 TableStyle)
 
 from .competition import competition_for_topic
+from .competitor_analysis import analysis_for_topic
 from .config import Config
 from .db import Database
 from .pipeline.describe import description_for_topic
@@ -53,6 +54,13 @@ from .readmodel import ReadModel
 from .sizing import format_eur, sizes_for_topic
 
 log = logging.getLogger(__name__)
+
+#: The set of sections a current brief contains. Bumped when a section is added,
+#: so a brief rendered before that section exists is detectable as INCOMPLETE
+#: rather than merely old. A stale brief and an incomplete brief are different
+#: problems: the first was right when it was made, the second never carried the
+#: section at all, and the interface says which.
+BRIEF_SCHEMA = "brief-2-competitor-analysis"
 
 # Orange Business brand-adjacent palette. Orange is reserved for Orange's own
 # components and for emphasis, exactly as in the UI, so the reader learns one
@@ -289,11 +297,12 @@ class BriefBuilder:
         description = description_for_topic(self.db, topic_id)
         competition = competition_for_topic(self.db, topic_id)
         sizes = sizes_for_topic(self.db, topic_id)
+        analysis = analysis_for_topic(self.db, topic_id)
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{topic_id}-opportunity-brief.pdf"
         path = self.output_dir / filename
-        story = self._story(topic, description, competition, sizes)
+        story = self._story(topic, description, competition, sizes, analysis)
         self._render(path, story, topic)
 
         payload = path.read_bytes()
@@ -304,15 +313,16 @@ class BriefBuilder:
                 """INSERT INTO topic_briefs
                        (opportunity_id, generated_at, topic_version, path, filename, bytes,
                         content_hash, description_at, market_size_at, weight_set, sizing_version,
-                        prompt_version, model_version, pipeline_version)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        prompt_version, model_version, pipeline_version, brief_schema)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(opportunity_id) DO UPDATE SET
                        generated_at=excluded.generated_at, topic_version=excluded.topic_version,
                        path=excluded.path, filename=excluded.filename, bytes=excluded.bytes,
                        content_hash=excluded.content_hash, description_at=excluded.description_at,
                        market_size_at=excluded.market_size_at, weight_set=excluded.weight_set,
                        sizing_version=excluded.sizing_version, prompt_version=excluded.prompt_version,
-                       model_version=excluded.model_version, pipeline_version=excluded.pipeline_version""",
+                       model_version=excluded.model_version, pipeline_version=excluded.pipeline_version,
+                       brief_schema=excluded.brief_schema""",
                 (topic_id, now, topic["version"], str(path), filename, len(payload), digest,
                  (description or {}).get("generated_at"),
                  sizes[0]["computed_at"] if sizes else None,
@@ -320,7 +330,7 @@ class BriefBuilder:
                  sizes[0]["sizing_version"] if sizes else self.cfg.sizing_version,
                  (description or {}).get("provenance", {}).get("prompt_version"),
                  (description or {}).get("provenance", {}).get("model_version"),
-                 self.cfg.pipeline_version),
+                 self.cfg.pipeline_version, BRIEF_SCHEMA),
             )
         log.info("Brief for %s: %s (%d bytes)", topic_id, path, len(payload))
         return brief_for_topic(self.db, topic_id) or {}
@@ -364,7 +374,8 @@ class BriefBuilder:
     # -- story -------------------------------------------------------------
 
     def _story(self, topic: dict[str, Any], description: dict[str, Any] | None,
-               competition: dict[str, Any] | None, sizes: list[dict[str, Any]]) -> list[Any]:
+               competition: dict[str, Any] | None, sizes: list[dict[str, Any]],
+               analysis: dict[str, Any] | None = None) -> list[Any]:
         style = self.styles
         story: list[Any] = []
         story += self._cover(topic, competition, sizes)
@@ -405,6 +416,7 @@ class BriefBuilder:
         story += self._why_hot(topic)
         story += self._delivery(topic, sections, titles)
         story += self._competition(competition, sections, titles, topic)
+        story += self._competitor_analysis(analysis)
         story += self._questions_and_objections(description)
         story += self._actions(topic, sections, titles)
         story += self._evidence_appendix(topic)
@@ -608,6 +620,85 @@ class BriefBuilder:
             story.append(Paragraph(
                 f"{hidden} further published reference(s) in this vertical are linked to this topic "
                 f"and are listed in the radar.", style["small"]))
+        return story
+
+    def _competitor_analysis(self, analysis: dict[str, Any] | None) -> list[Any]:
+        """Per-competitor activity and the Orange differentiation angle.
+
+        This is the section a salesperson reads last and uses first, so it is
+        laid out per competitor rather than as a table: the differentiation
+        paragraph is a thing you say out loud, and a table cell is not.
+
+        Where a competitor's site refused to be read, that is printed. A brief
+        that quietly omits four of eight competitors reads as a complete field.
+        """
+        style = self.styles
+        story: list[Any] = [PageBreak(), Paragraph("Competitor analysis", style["h2"])]
+        if not analysis or not analysis.get("entries"):
+            story.append(Paragraph(
+                "No competitor from the register is matched to this space. That is reported as "
+                "unverified rather than as an empty field: it may only mean the register has a "
+                "gap in this vertical.", style["small"]))
+            return story
+
+        coverage = analysis.get("coverage") or {}
+        unread = int(coverage.get("blocked", 0)) + int(coverage.get("unread", 0))
+        story.append(Paragraph(
+            f'{coverage.get("profiled", 0)} of {coverage.get("on_topic", 0)} competitors on this '
+            f'space have been read from their own published pages'
+            + (f'; {unread} could not be read and are marked below.' if unread else '.'),
+            style["small"]))
+
+        if not analysis.get("has_narrative"):
+            story.append(Paragraph(
+                "<b>The written comparison has not been generated for this space.</b> What follows "
+                "is the structural join only — each competitor's own claims, filtered to this "
+                "opportunity. Regenerate the brief after writing the comparison to include the "
+                "differentiation angle per competitor.", style["small"]))
+
+        narrative = analysis.get("narrative") or {}
+        if narrative.get("field"):
+            story.append(Paragraph("The shape of the field", style["h3"]))
+            story.append(Paragraph(_text(narrative["field"]), style["body"]))
+
+        for entry in analysis["entries"]:
+            story.append(Spacer(1, 4 * mm))
+            badges = [entry.get("type_label", "")]
+            if entry.get("relationship") == "both":
+                badges.append("also an Orange partner")
+            badges.append(f'{entry.get("basis", "")} presence')
+            story.append(Paragraph(
+                f'<b>{_text(entry["label"])}</b> '
+                f'<font size=7 color="#777777">{_text(" · ".join(b for b in badges if b))}</font>',
+                style["body"]))
+
+            if entry.get("profile_status") != "profiled":
+                story.append(Paragraph(
+                    f'<i>Their published position is unread — {_text(entry.get("profile_reason") or entry.get("profile_status"))}. '
+                    f'Nothing below is inferred on their behalf.</i>', style["small"]))
+            elif entry.get("positioning"):
+                story.append(Paragraph(_text(entry["positioning"]), style["small"]))
+
+            written = entry.get("written") or {}
+            activity = (written.get("activity") or {}).get("text")
+            if activity:
+                story.append(Paragraph(f'<b>Doing here:</b> {_text(activity)}', style["body"]))
+            elif entry.get("relevant_claims"):
+                claims = "; ".join(c["claim"] for c in entry["relevant_claims"][:3])
+                story.append(Paragraph(
+                    f'<b>From their own pages:</b> {_text(claims)}', style["small"]))
+
+            if written.get("differentiation"):
+                story.append(Paragraph(
+                    f'<b><font color="{_hex(ORANGE)}">How Orange differentiates:</font></b> '
+                    f'{_text(written["differentiation"])}', style["body"]))
+                if written.get("orange_assets"):
+                    story.append(Paragraph(
+                        f'<font size=7 color="#777777">Anchored on: '
+                        f'{_text(" · ".join(written["orange_assets"]))}</font>', style["small"]))
+            if written.get("concession"):
+                story.append(Paragraph(
+                    f'<i>What they do better: {_text(written["concession"])}</i>', style["small"]))
         return story
 
     def _competition(self, competition: dict[str, Any] | None, sections: dict[str, Any],
@@ -945,6 +1036,16 @@ def brief_for_topic(db: Database, topic_id: str) -> dict[str, Any] | None:
             else "the market size has been recomputed since" if sizing_moved
             else "the PDF file is missing" if path is None else None
         ),
+        # INCOMPLETE is not the same as STALE, and conflating them would hide
+        # the more actionable of the two. A stale brief was correct when it was
+        # made and has been overtaken. An incomplete brief never carried a
+        # section that current briefs carry — here, the competitor analysis —
+        # so no amount of waiting fixes it and the only remedy is to rebuild.
+        "brief_schema": row["brief_schema"],
+        "incomplete": row["brief_schema"] != BRIEF_SCHEMA,
+        "missing_sections": ([] if row["brief_schema"] == BRIEF_SCHEMA
+                             else ["Competitor analysis — what each competitor is doing in this "
+                                   "space, and how Orange differentiates against each of them"]),
         "weight_set": row["weight_set"],
         "sizing_version": row["sizing_version"],
         "prompt_version": row["prompt_version"],

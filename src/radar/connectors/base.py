@@ -29,7 +29,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Iterator
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
@@ -95,6 +95,15 @@ class Connector(ABC):
         self.max_extract_chars = max_extract_chars
         self.default_tier = int(source.get("default_tier", self.default_tier))
         self.min_interval = float(source.get("rate_limit_seconds", self.min_interval))
+        # §2.6 makes geography a first-class scoring dimension, and the first
+        # corpus had 2,253 signals (31%) with none at all — every news, trade
+        # press, scholarly and regulator item. For sources whose jurisdiction is
+        # a constant (a national regulator, a national procurement portal) the
+        # answer is knowable without asking anyone, so it is declared in the
+        # source config rather than left empty.
+        self.default_geographies = [
+            to_alpha2(str(code)) for code in (self.params.get("geographies") or [])
+        ]
 
     def get(self, url: str, **kwargs) -> "requests.Response | None":
         return self.session.get(url, min_interval=self.min_interval, **kwargs)
@@ -114,6 +123,12 @@ class Connector(ABC):
         if len(text) <= self.max_extract_chars:
             return text
         return text[: self.max_extract_chars].rsplit(" ", 1)[0] + "…"
+
+    def geographies_for(self, discovered: list[str] | None = None) -> list[str]:
+        """Whatever the item itself revealed, else the source's declared scope."""
+        found = [to_alpha2(code) for code in (discovered or []) if code]
+        found = [code for code in found if code]
+        return found or list(self.default_geographies)
 
     def in_window(self, published: dt.date | None, reference_date: dt.date, since_days: int) -> bool:
         """Reject anything published after the reference date (FR-35 leakage control)."""
@@ -251,6 +266,15 @@ _DATE_PATTERNS = (
     "%B %d, %Y",
     "%a, %d %b %Y %H:%M:%S %z",
     "%a, %d %b %Y %H:%M:%S %Z",
+    # RFC-822 allows a two-digit year and CISA's advisory feed uses it
+    # ("Wed, 19 Aug 26 12:00:00 +0000"). Without these two patterns the whole
+    # feed parses as undated and is rejected under DR-04 — 30 advisories lost
+    # silently, the same shape of failure as the CORDIS month template.
+    "%a, %d %b %y %H:%M:%S %z",
+    "%a, %d %b %y %H:%M:%S %Z",
+    # Drupal-flavoured RSS ("Fri, 08/14/2026 - 16:01"), emitted by several
+    # europa.eu site feeds.
+    "%a, %m/%d/%Y - %H:%M",
     "%Y-%m-%dT%H:%M:%S%z",
     "%Y-%m-%dT%H:%M:%SZ",
     "%Y-%m-%dT%H:%M:%S",
@@ -295,6 +319,39 @@ def parse_date(value: Any) -> dt.date | None:
         except ValueError:
             return None
     return None
+
+
+#: Query parameters used by news aggregators to carry the real destination.
+_REDIRECT_PARAMS = ("url", "u", "target", "r", "RU")
+
+
+def unwrap_redirect(url: str) -> str:
+    """Resolve an aggregator redirect to the article it points at.
+
+    Bing News RSS returns every link as
+    `bing.com/news/apiclick.aspx?...&url=<percent-encoded target>`. Stored
+    as-is, that costs the radar twice: the publisher collapses to `bing.com`
+    for a source added specifically because SC-03 measures diversity across
+    PUBLISHERS (all 76 items booked one publisher), and the stored URL is a
+    redirect rather than the citable source NFR-02 requires a reviewer to be
+    able to open.
+
+    The destination is already in the query string, so this is a parse, not a
+    fetch — no extra request, and no dependence on the redirector still being
+    alive when someone follows the citation.
+    """
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url
+    query = parse_qs(parsed.query)
+    for key in _REDIRECT_PARAMS:
+        for candidate in query.get(key, []):
+            target = unquote(candidate).strip()
+            if target.startswith(("http://", "https://")):
+                return target
+    return url
 
 
 def publisher_from_url(url: str) -> str:

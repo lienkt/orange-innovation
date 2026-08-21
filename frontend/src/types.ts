@@ -200,6 +200,65 @@ export interface Competitor {
   contribution: number
 }
 
+/** One competitor on one opportunity space: what the register knows, what their
+ *  own pages say, and how Orange differentiates against them specifically.
+ *
+ *  The split matters and is preserved all the way to the screen. `relevant_claims`
+ *  and `register_overlap` are a join over stored data — reproducible, free, always
+ *  present. `written` is a model comparing two companies, and it is absent until
+ *  somebody asks for it. */
+export interface CompetitorAnalysisEntry {
+  id: string
+  label: string
+  type: string
+  type_label: string
+  relationship: 'competitor' | 'partner' | 'both'
+  basis: 'evidenced' | 'structural'
+  website?: string
+  mentions: CompetitorMention[]
+  profile_status: 'profiled' | 'blocked' | 'unreachable' | 'no_pages' | 'unread'
+  profile_reason?: string | null
+  positioning?: string | null
+  pages_used: number
+  named_offers: string[]
+  register_overlap: { vertical: boolean; use_case: boolean; technology: boolean }
+  profile_overlap?: { vertical?: boolean; use_case?: boolean; technology?: boolean }
+  relevant_claims: { claim: string; pages: string[] }[]
+  written?: {
+    activity: { text: string; pages: string[] }
+    /** How Orange differentiates against THIS competitor, for THIS opportunity. */
+    differentiation: string
+    orange_assets: string[]
+    concession: string
+  } | null
+}
+
+export interface CompetitorAnalysis {
+  opportunity_id: string
+  computed_at: string
+  topic_version: number
+  entries: CompetitorAnalysisEntry[]
+  narrative: { per_competitor: Record<string, any>; field: string } | null
+  has_narrative: boolean
+  stripped: { competitor: string; reason: string }[]
+  coverage: {
+    on_topic?: number
+    profiled?: number
+    blocked?: number
+    unread?: number
+    register?: {
+      register_total: number; profiled: number; blocked: number
+      unreachable: number; no_pages: number; unread: number; register_version: string
+    }
+  }
+  register_version: string
+  prompt_version?: string | null
+  model_version?: string | null
+  /** False when competitive intensity was never computed — distinct from
+   *  computed-and-matched-nobody, which is a claim about the register. */
+  competition_assessed?: boolean
+}
+
 /** §4.3.3 — a FOURTH quantity beside attractiveness, right to win and
  *  conviction, never folded into any of them. */
 export interface Competition {
@@ -254,6 +313,11 @@ export interface BriefMeta {
   model_version?: string
   url?: string
   description_available?: boolean
+  /** The brief predates a section current briefs carry. Distinct from `stale`:
+   *  stale means overtaken, incomplete means it never had the section. */
+  brief_schema?: string | null
+  incomplete?: boolean
+  missing_sections?: string[]
 }
 
 export interface Topic {
@@ -330,6 +394,19 @@ export interface Coverage {
   sources: Record<string, number>
   geographies: Record<string, number>
   topics_per_vertical: Record<string, number>
+  /** What the competitive picture is missing, reported rather than inferred
+   *  from an empty panel. Three separate gaps that compound. */
+  competitors?: {
+    register_total: number
+    register_version: string
+    by_status: Record<string, number>
+    unread_named: Record<string, string[]>
+    pages_read: number
+    topics_total: number
+    topics_assessed: number
+    topics_analysed: number
+    topics_written: number
+  }
 }
 
 export type FilterState = {

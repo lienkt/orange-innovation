@@ -231,6 +231,14 @@ class SynthesisStats:
     #: constraints. Counted separately from a vocabulary failure: the candidate
     #: was well-formed, it was simply not what was asked for.
     failed_constraints: int = 0
+    #: Well-formed candidates that landed on a taxonomy cell the radar already
+    #: holds. Kept and merged (DR-03), but they create nothing, so a request for
+    #: five new spaces is not answered by five of these.
+    duplicate_of_existing: int = 0
+    #: Extra generation passes spent because every candidate from a cluster hit
+    #: an occupied cell. NFR-10 makes inference cost a reported quantity, and
+    #: this is the one loop that can spend more than the plan implies.
+    duplicate_retries: int = 0
     rounds: int = 1
     rejections: list[dict[str, str]] = field(default_factory=list)
     #: DR-03 makes "updated" and "created" different events, and the Generate
@@ -329,8 +337,8 @@ class Synthesiser:
                                    progress=progress, cancelled=cancelled, tick=emit)
             for field_name in ("clusters_processed", "raw_candidates", "failed_vocabulary",
                               "failed_specificity", "failed_evidence", "failed_critic",
-                              "failed_constraints", "merged_duplicates", "accepted",
-                              "entailment_stripped"):
+                              "failed_constraints", "duplicate_of_existing", "duplicate_retries",
+                              "merged_duplicates", "accepted", "entailment_stripped"):
                 setattr(overall, field_name,
                         getattr(overall, field_name) + getattr(stats, field_name))
             overall.rejections.extend(stats.rejections)
@@ -439,11 +447,31 @@ class Synthesiser:
         # a lock.
         lock = threading.Lock()
         accepted: list[Candidate] = []
-        # Set once enough candidates exist to satisfy the request. Clusters
-        # already in flight finish; the ones still queued return immediately.
-        # Without this, "generate five spaces" would read all 139 clusters and
-        # spend several hundred model calls to keep eight of them.
+        # Cells that are spoken for: everything the radar already holds, plus
+        # everything accepted so far in this batch. Shared under the lock so two
+        # clusters running in parallel cannot both claim the same new cell and
+        # then merge into one at persist time.
+        taken = self._live_triples()
+        # Frozen before the batch mutates `taken`, so "new" always means "not in
+        # the radar when this round started" rather than drifting as cells are
+        # claimed.
+        already_live = frozenset(taken)
+        scoped_taken = self._scoped_taken(taken)
+        # Set once enough NEW cells are claimed. Counting accepted candidates
+        # instead was the bug behind "it keeps giving me spaces that already
+        # exist": three candidates that all land on occupied cells satisfied the
+        # count, stopped the round, and created nothing.
         enough = threading.Event()
+        # A round-level budget on retrying, on top of the per-cluster cap.
+        # Without it a corpus whose every theme is already covered spends
+        # DUPLICATE_RETRIES extra model passes on each of a hundred clusters to
+        # discover, correctly, that there is nothing new — and NFR-10 makes that
+        # cost a reported quantity rather than a surprise.
+        retry_budget = [max(4, (target_new or 1) * 2)]
+
+        def new_cells() -> int:
+            """Distinct cells this batch would CREATE. Must be called under the lock."""
+            return len({c.triple for c in accepted} - already_live)
 
         def process(cluster_id: int) -> None:
             if enough.is_set() or (cancelled and cancelled()):
@@ -451,48 +479,93 @@ class Synthesiser:
             payload = self._cluster_payload(cluster_id)
             if not payload["signals"]:
                 return
-            candidates = self._generate(payload, target_cells)
-            with lock:
-                stats.clusters_processed += 1
-                stats.processed_cluster_ids.append(cluster_id)
-                stats.raw_candidates += len(candidates)
-
             valid_ids = {s["id"] for s in payload["signals"]}
             survivors: list[Candidate] = []
-            for candidate in candidates:
-                candidate.cluster_id = cluster_id
+            fresh = 0
+            collided: list[str] = []
+
+            # Attempt 0 is the ordinary pass. Each retry names the cells the last
+            # attempt collided with, which is the shortest and most relevant
+            # "do not propose these" list available — far better than shipping
+            # four hundred occupied cells with every prompt.
+            for attempt in range(1 + self.DUPLICATE_RETRIES):
+                if enough.is_set() or (cancelled and cancelled()):
+                    break
                 with lock:
-                    ok = self._validate(candidate, valid_ids, stats)
-                if not ok:
-                    continue
-                if run_critic:
-                    # The critic compares against neighbouring candidates, so it
-                    # reads the shared accepted list — a snapshot is enough and
-                    # avoids holding the lock across a model call.
+                    if attempt and retry_budget[0] <= 0:
+                        break
+                    if attempt:
+                        retry_budget[0] -= 1
+                    avoid = list(dict.fromkeys(collided + scoped_taken))[: self.AVOID_LIMIT]
+                candidates = self._generate(payload, target_cells, avoid=avoid or None)
+                with lock:
+                    if attempt == 0:
+                        stats.clusters_processed += 1
+                        stats.processed_cluster_ids.append(cluster_id)
+                    else:
+                        stats.duplicate_retries += 1
+                    stats.raw_candidates += len(candidates)
+
+                for candidate in candidates:
+                    candidate.cluster_id = cluster_id
                     with lock:
-                        neighbours = list(accepted[-8:])
-                    if not self._criticise(candidate, payload, neighbours, stats, lock):
+                        ok = self._validate(candidate, valid_ids, stats)
+                    if not ok:
                         continue
-                if run_entailment:
-                    self._entailment_check(candidate, payload, stats, lock)
-                    if not candidate.why_hot:
+                    if run_critic:
+                        # The critic compares against neighbouring candidates, so
+                        # it reads the shared accepted list — a snapshot is enough
+                        # and avoids holding the lock across a model call.
                         with lock:
-                            stats.failed_evidence += 1
-                            stats.rejections.append(
-                                {"statement": candidate.statement, "reason": "all claims failed entailment"}
-                            )
-                        continue
-                survivors.append(candidate)
-                with lock:
-                    accepted.append(candidate)
-                    # Over-shoot deliberately: deduplication and the DR-03 merge
-                    # below both turn accepted candidates into fewer new spaces,
-                    # so stopping exactly on the number would undershoot.
-                    if target_new is not None and len(accepted) >= target_new + 2:
-                        enough.set()
-            log.info("cluster %s → %d candidates, %d survived", cluster_id, len(candidates), len(survivors))
+                            neighbours = list(accepted[-8:])
+                        if not self._criticise(candidate, payload, neighbours, stats, lock):
+                            continue
+                    if run_entailment:
+                        self._entailment_check(candidate, payload, stats, lock)
+                        if not candidate.why_hot:
+                            with lock:
+                                stats.failed_evidence += 1
+                                stats.rejections.append(
+                                    {"statement": candidate.statement, "reason": "all claims failed entailment"}
+                                )
+                            continue
+                    survivors.append(candidate)
+                    with lock:
+                        occupied = candidate.triple in taken
+                        accepted.append(candidate)
+                        if occupied:
+                            # Kept, not dropped: DR-03 says the new evidence
+                            # attaches to the space that already owns this cell,
+                            # and that is worth having. It just is not what was
+                            # asked for, so it does not count.
+                            stats.duplicate_of_existing += 1
+                            collided.append(self._format_cells([candidate.triple])[0])
+                        else:
+                            taken.add(candidate.triple)
+                            fresh += 1
+                        # Over-shoot deliberately: near-duplicate merging turns
+                        # accepted candidates into fewer spaces, so stopping
+                        # exactly on the number would undershoot.
+                        # One spare, not two: `new_cells` already counts DISTINCT
+                        # cells, so the DR-03 merge is accounted for and only the
+                        # rarer near-duplicate merge across different cells can
+                        # still shrink the result. Asking for one and reading
+                        # until three exist was doing triple the work.
+                        if target_new is not None and new_cells() >= target_new + 1:
+                            enough.set()
+                if fresh or not collided:
+                    # Either it found something new, or it found nothing at all —
+                    # and "nothing" means the evidence is exhausted, not that the
+                    # model needs another go at the same cells.
+                    break
+                if progress:
+                    progress(f"cluster {cluster_id}: attempt {attempt + 1} produced only cells that "
+                             f"are already taken ({collided[-1]}) — asking again, excluding them")
+
+            log.info("cluster %s → %d survived, %d on new cells", cluster_id, len(survivors), fresh)
             if progress:
-                progress(f"cluster {cluster_id}: {len(candidates)} candidate(s), {len(survivors)} survived")
+                progress(f"cluster {cluster_id}: {len(survivors)} candidate(s) survived, "
+                         f"{fresh} on cells the radar does not already have")
             if tick:
                 # Reported from inside the pool, so the bar moves as each
                 # cluster lands rather than once at the end of the round.
@@ -749,7 +822,62 @@ class Synthesiser:
                             targets.append(
                                 {"vertical": vertical.id, "use_case": use_case.id, "technology": tech_id}
                             )
+        # A cell several competitors have already staked out is a better target
+        # than one the grid merely permits, so those are moved to the front
+        # rather than added: the list is a priority order, not a set.
+        competitor_cells = self._competitor_targets(existing)
+        if competitor_cells:
+            keyed = {(t["vertical"], t["use_case"], t["technology"]): t for t in targets}
+            for cell in competitor_cells:
+                keyed.pop(cell, None)
+            targets = [
+                {"vertical": v, "use_case": u, "technology": t} for v, u, t in competitor_cells
+            ] + list(keyed.values())
         return targets
+
+    def _competitor_targets(self, existing: set[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+        """Cells where competitors are demonstrably active and the radar is not.
+
+        This is the competitor profile acting as a SEED, which is the only role
+        the tiering allows it. A vendor's own site is tier-4 evidence: it may not
+        lift a score and it may not, on its own, justify a topic. What it can do
+        is say where to look — and "three named competitors sell this technology
+        into this vertical and we have no topic there" is a better reason to look
+        than an empty cell in a grid that permits thousands of them.
+
+        The candidate a competitor-seeded pass produces still has to bind to the
+        cluster's own evidence, still faces the critic, and still scores on the
+        corpus rather than on the fact that a competitor said something. If no
+        independent evidence supports it, it does not survive — which is the
+        correct outcome, and is why seeding here is safe.
+        """
+        try:
+            rows = self.db.query(
+                """SELECT competitor_id, verticals, use_cases, technologies
+                   FROM competitor_profiles WHERE status = 'profiled'""")
+        except Exception:                                   # pragma: no cover - table may predate
+            return []
+        counts: dict[tuple[str, str, str], set[str]] = {}
+        for row in rows:
+            verticals = unjs(row["verticals"], []) or []
+            use_cases = unjs(row["use_cases"], []) or []
+            technologies = unjs(row["technologies"], []) or []
+            for vertical in verticals:
+                for use_case in use_cases:
+                    for technology in technologies:
+                        cell = (vertical, use_case, technology)
+                        if cell in existing:
+                            continue
+                        counts.setdefault(cell, set()).add(row["competitor_id"])
+        if not counts:
+            return []
+        # Two competitors, not one. A single vendor tagging a cell is that
+        # vendor's marketing; two independently is a pattern worth a pass.
+        contested = {cell: who for cell, who in counts.items() if len(who) >= 2}
+        ranked = sorted(contested.items(), key=lambda kv: -len(kv[1]))
+        log.info("Competitor-seeded targets: %d cells contested by 2+ profiled competitors",
+                 len(ranked))
+        return [cell for cell, _ in ranked[: self.COMPETITOR_TARGET_LIMIT]]
 
     #: §4.4.3 warns that an open-ended brainstorming loop "tends to produce
     #: volume rather than coverage: the model elaborates around whatever it
@@ -766,7 +894,76 @@ class Synthesiser:
         "cluster. What has just become deployable that was not before?",
         "Reason from the CROSS-VERTICAL angle: this cluster's evidence may be concentrated "
         "in one sector, but the same problem may be more acute in another. Say which.",
+        # Competitor-move lens. The profiles cannot justify a topic — a vendor's
+        # own site is tier-4 — but they are a legitimate place to LOOK, and
+        # "several competitors have built for this and the evidence here
+        # supports it" is a different and better-founded candidate than the same
+        # cell reached by grid enumeration alone.
+        "Reason from COMPETITIVE MOVEMENT. Some of the target cells below are places where "
+        "two or more named competitors already sell. Ask what customer problem that movement "
+        "implies, then check whether THIS cluster's evidence independently supports it. If the "
+        "evidence does not support it, do not propose it — a competitor's marketing is not a "
+        "market, and an unsupported candidate is rejected downstream anyway.",
     )
+
+    #: Competitor-seeded cells promoted to the front of the target list. Capped
+    #: because the cross-product of one profile's tags is large and mostly
+    #: spurious: a competitor tagged with 6 verticals, 8 use cases and 6
+    #: technologies implies 288 cells, almost none of which it actually sells.
+    #: Requiring two independent competitors and then taking the top slice is
+    #: what turns that cross-product back into a signal.
+    COMPETITOR_TARGET_LIMIT = 24
+
+    #: How many occupied cells to name in a prompt. The radar holds hundreds and
+    #: the whole list would cost more input tokens per pass than the evidence it
+    #: is meant to protect. What matters is naming the ones this cluster is
+    #: actually about — which is why the retry below, whose list is exactly what
+    #: the model just proposed, is the part that does the work.
+    AVOID_LIMIT = 40
+
+    #: Extra generation passes for ONE cluster when every candidate landed on a
+    #: cell that already exists. Two, not more: if the evidence in a cluster
+    #: supports one opportunity and the radar already has it, saying so beats
+    #: manufacturing a worse one.
+    DUPLICATE_RETRIES = 2
+
+    def _live_triples(self) -> set[tuple[str, str, str]]:
+        """Every taxonomy cell currently occupied (§4.4.5 canonical identity)."""
+        return {
+            (r["vertical"], r["use_case"], r["technology"])
+            for r in self.db.query(
+                "SELECT vertical, use_case, technology FROM opportunity_spaces "
+                "WHERE merged_into IS NULL"
+            )
+        }
+
+    def _format_cells(self, triples) -> list[str]:
+        return [f"{v} x {u} x {t}" for v, u, t in triples]
+
+    def _scoped_taken(self, taken: set[tuple[str, str, str]]) -> list[str]:
+        """Occupied cells worth naming up front, narrowed by the request.
+
+        With a vertical or domain selected the in-scope list is short and every
+        entry is a cell the model is genuinely likely to propose. Unconstrained
+        it is the whole radar, so nothing is sent and the retry does the work —
+        a list of four hundred cells would cost more than the evidence block.
+        """
+        if not self.constraints.verticals and not self.constraints.domains:
+            return []
+        wanted_verticals = set(self.constraints.verticals)
+        wanted_domains = set(self.constraints.domains)
+        in_scope = []
+        for triple in sorted(taken):
+            vertical, use_case, _ = triple
+            if wanted_verticals and vertical not in wanted_verticals:
+                continue
+            if wanted_domains:
+                domains = set(self.cfg.use_cases[use_case].get("domains") or []) \
+                    if use_case in self.cfg.use_cases else set()
+                if not (domains & wanted_domains):
+                    continue
+            in_scope.append(triple)
+        return self._format_cells(in_scope[: self.AVOID_LIMIT])
 
     def _constraint_block(self) -> list[str] | None:
         """The requested bounds, phrased for the model.
@@ -796,7 +993,7 @@ class Synthesiser:
         return lines or None
 
     def _generate(self, payload: dict[str, Any], target_cells: list[dict[str, str]],
-                  brief: str | None = None) -> list[Candidate]:
+                  brief: str | None = None, avoid: list[str] | None = None) -> list[Candidate]:
         """Over-produce candidates for one cluster (§4.4.3).
 
         "It is cheaper to generate forty candidates and keep eight than to coax
@@ -808,6 +1005,18 @@ class Synthesiser:
         system = prompts.synthesis_system_prompt(self.cfg)
         passes = max(1, int(self.cfg.settings["curation"].get("candidates_per_cluster", 1)))
 
+        # The lens window is OFFSET PER CLUSTER, not fixed at zero.
+        #
+        # With `index % len(LENSES)` and three passes over four lenses, lenses 0,
+        # 1 and 2 fired on every cluster and lens 3 fired on none — the
+        # cross-vertical lens was unreachable for the whole life of the pipeline,
+        # and every lens added after it would have been dead on arrival too.
+        # Rotating the start by the cluster means each cluster still gets three
+        # DIFFERENT lenses (which is what §4.4.3 asks for) while the corpus as a
+        # whole gets all of them.
+        offset = abs(hash(str(payload.get("cluster_id") or payload.get("label") or ""))) % len(
+            self.GENERATION_LENSES)
+
         def one_pass(index: int) -> list[Candidate]:
             # No lens on a brief run. The lenses exist to stop several passes
             # over one cluster from paraphrasing each other (§4.4.3) — but a
@@ -815,10 +1024,11 @@ class Synthesiser:
             # brief and to reason primarily from regulatory evidence is two
             # instructions pulling apart. The passes still diverge, through
             # temperature, which is what they were for.
-            lens = (self.GENERATION_LENSES[index % len(self.GENERATION_LENSES)]
+            lens = (self.GENERATION_LENSES[(offset + index) % len(self.GENERATION_LENSES)]
                     if passes > 1 and not brief else None)
             user = prompts.synthesis_user_prompt(payload, target_cells, lens=lens,
-                                                 constraints=self._constraint_block(), brief=brief)
+                                                 constraints=self._constraint_block(), brief=brief,
+                                                 avoid=avoid)
             try:
                 data = self.llm.complete_json(
                     system, user, strong=True, temperature=self.temperature, max_tokens=4000

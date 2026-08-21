@@ -261,26 +261,64 @@ class GenerationService:
             ids = list(reversed(self._order))[:limit]
             return [self._jobs[i] for i in ids if i in self._jobs]
 
+    @staticmethod
+    def encoder_reason() -> str | None:
+        """Why this process cannot generate, if it cannot. None when it can.
+
+        The serving deployment ships WITHOUT the sentence-transformer encoder on
+        purpose: it pulls torch, and requirements-azure.txt calls that "the
+        difference between a 150 MB deployment and a 2.5 GB one, and on the Free
+        tier the difference between starting and not". `radar.api` never needed
+        it, because the read path never embeds anything.
+
+        Generation does. Synthesis deduplicates candidates by statement
+        similarity (§4.4.5) and the free-text path retrieves evidence by
+        embedding a brief against the stored signal vectors. Those vectors are
+        384-dimensional and were produced by that model, so the TF-IDF fallback
+        is not a substitute for the second job at any quality — its output has a
+        different width and cannot be compared against them at all.
+
+        `find_spec` rather than an import: this is called on every poll of the
+        Generate screen, and importing the package would load torch.
+        """
+        import importlib.util
+        if importlib.util.find_spec("sentence_transformers") is not None:
+            return None
+        return (
+            "This deployment serves the radar but cannot generate. Synthesis needs the "
+            "sentence-transformer encoder — to deduplicate candidates, and to retrieve the "
+            "evidence behind a written brief — and the serving package ships without it "
+            "deliberately, because it pulls torch and would not fit the plan this runs on. "
+            "The stored signal embeddings came from that model, so no substitute encoder can "
+            "be compared against them. Generation is a batch step: run it locally "
+            "(`radar refresh`, or this screen against a local server) and redeploy — the "
+            "deployed app serves what the pipeline produced."
+        )
+
     def readiness(self) -> dict[str, Any]:
         """Whether a run could succeed right now, and if not, why not.
 
-        Synthesis reads clusters. A database that has been initialised but never
-        refreshed has none, and the failure mode without this check is a run that
-        starts, does nothing, and reports zero — indistinguishable from "the
-        evidence does not support it", which is a completely different message.
+        Two ways it cannot. Synthesis reads clusters, and a database that has
+        been initialised but never refreshed has none — the failure mode without
+        that check is a run that starts, does nothing and reports zero, which is
+        indistinguishable from "the evidence does not support it" and is a
+        completely different message. And the serving deployment has no encoder;
+        see `encoder_reason`.
         """
         clusters = self.db.query_one("SELECT COUNT(*) n FROM clusters")["n"]
         signals = self.db.query_one("SELECT COUNT(*) n FROM signals WHERE cluster_id IS NOT NULL")["n"]
         active = self.active()
+        reason = self.encoder_reason() or (
+            None if clusters > 0 else
+            "No theme clusters exist yet, so there is no evidence to synthesise from. "
+            "Run a refresh (`radar refresh`) first — generation reasons over the corpus "
+            "the pipeline has already collected and clustered."
+        )
         return {
             "clusters": clusters,
             "clustered_signals": signals,
-            "ready": clusters > 0,
-            "reason": None if clusters > 0 else (
-                "No theme clusters exist yet, so there is no evidence to synthesise from. "
-                "Run a refresh (`radar refresh`) first — generation reasons over the corpus "
-                "the pipeline has already collected and clustered."
-            ),
+            "ready": reason is None,
+            "reason": reason,
             "max_per_run": MAX_PER_RUN,
             "busy": active.id if active and active.status in ("queued", "running") else None,
         }
@@ -332,6 +370,11 @@ class GenerationService:
         return f"G-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}"
 
     def _enqueue(self, job: GenerationJob, run_critic: bool, run_entailment: bool) -> GenerationJob:
+        # Refused here, not three stages in. A deployment that cannot generate
+        # at all should say so on the request rather than accept it, spend model
+        # calls, and fail at the deduplication step with an import error.
+        if (reason := self.encoder_reason()) is not None:
+            raise ValueError(reason)
         with self._lock:
             current = self._jobs.get(self._active) if self._active else None
             if current and current.status in ("queued", "running"):
@@ -514,6 +557,13 @@ class GenerationService:
             )
             return
         reasons = []
+        if stats.duplicate_of_existing:
+            reasons.append(
+                f"{stats.duplicate_of_existing} landed on taxonomy cells the radar already holds "
+                f"and were merged into them instead (DR-03)"
+                + (f", after {stats.duplicate_retries} extra pass(es) asking for something else"
+                   if stats.duplicate_retries else "")
+            )
         if stats.failed_constraints:
             reasons.append(f"{stats.failed_constraints} fell outside the requested scope")
         if stats.failed_critic:

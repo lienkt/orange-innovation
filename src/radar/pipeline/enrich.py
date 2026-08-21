@@ -64,10 +64,22 @@ class Enricher:
     # -- corroboration ----------------------------------------------------
 
     def _vocab_terms(self, vocab, key: str) -> list[str]:
+        """Every surface form of one vocabulary id, in every language we read.
+
+        The English labels and synonyms alone would make corroboration the
+        second English-only gate in the pipeline. That matters more here than it
+        looks: a French or Dutch signal that now survives stage 3 would arrive,
+        clear the similarity threshold, and then be refused for not containing
+        an English word — so the corpus unlocked by the lexicon would pass the
+        gate and still never attach to a topic. Multilingual terms come from the
+        same file for the same reason (config/taxonomy/lexicon.yaml).
+        """
         item = vocab.get(key)
         if item is None:
             return []
         terms = [item.label.lower(), *(s.lower() for s in item.synonyms)]
+        for language, values in (self.cfg.lexicon.get("terms", {}).get(key) or {}).items():
+            terms.extend(str(v).lower() for v in values or ())
         return [t for t in terms if len(t) >= 4]
 
     def _corroborates(self, topic: dict, signal: dict, signal_cpv: dict[str, float]) -> str | None:

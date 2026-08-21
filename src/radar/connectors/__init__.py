@@ -13,7 +13,7 @@ import logging
 from typing import Any
 
 from .base import REGISTRY, CollectedItem, Connector, HttpSession, clean_text, parse_date, publisher_from_url
-from . import extra, news, procurement, regulation, research  # noqa: F401 — import registers connectors
+from . import demand, extra, news, procurement, regulation, research, standards  # noqa: F401 — import registers connectors
 
 log = logging.getLogger(__name__)
 

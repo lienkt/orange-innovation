@@ -5,6 +5,10 @@ import ScoreBreakdown from './ScoreBreakdown'
 import { EvidenceTimeline } from './Charts'
 import { AssessmentWidget, ConvictionPanel, StageControl, type WorkflowMeta } from './Workflow'
 import { HelpButton } from './Help'
+import {
+  IconBoard, IconChat, IconClock, IconCube, IconDoc, IconFlame, IconGauge, IconLink, IconMoney, IconPeople, IconTarget, IconThumb, IconTrend, IconVenn, IconVoices,
+  SECTION_ICONS,
+} from './Icons'
 import { rtwColor } from './RadarChart'
 import MarketSizePanel, { formatEur } from './MarketSize'
 import CompetitionPanel from './Competition'
@@ -261,9 +265,17 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
       )}
 
       <nav className="detail-nav" aria-label="Jump to a section">
-        {SECTIONS.map((section) => (
-          <button key={section.id} onClick={() => jumpTo(section.id)}>{section.label}</button>
-        ))}
+        {/* The same mark on the jump entry and on the heading it lands on. A
+            jump bar whose entries look nothing like their destinations is a
+            second vocabulary to learn. */}
+        {SECTIONS.map((section) => {
+          const Icon = SECTION_ICONS[section.id]
+          return (
+            <button key={section.id} onClick={() => jumpTo(section.id)}>
+              {Icon && <Icon className="nav-icon" />}{section.label}
+            </button>
+          )
+        })}
       </nav>
 
       {topic.evidence_gap_warning && (
@@ -281,7 +293,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- why hot: every claim traceable to a signal (FR-14, AC-01) --- */}
       <div className="detail-section" id="section-why-hot">
-        <h4>Why it is hot now{onHelp && <HelpButton topic="why_hot" onOpen={onHelp} />}</h4>
+        <h4><IconFlame />Why it is hot now{onHelp && <HelpButton topic="why_hot" onOpen={onHelp} />}</h4>
         {topic.why_hot.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No evidence-bound claims.</div>}
         {/* Synthesis passes over each cluster several times, so near-identical
             sentences accumulate on a topic and filled the pane's best screenful
@@ -320,13 +332,13 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- market size (§4.3.4): the working, not just the number --- */}
       <div className="detail-section" id="section-market">
-        <h4>Market opportunity{onHelp && <HelpButton topic="market_size" onOpen={onHelp} />}</h4>
+        <h4><IconMoney />Market opportunity{onHelp && <HelpButton topic="market_size" onOpen={onHelp} />}</h4>
         <MarketSizePanel sizes={topic.market_size ?? []} onHelp={onHelp} />
       </div>
 
       {/* --- competitive landscape (§4.3.3) --- */}
       <div className="detail-section" id="section-competition">
-        <h4>Competition{onHelp && <HelpButton topic="competition" onOpen={onHelp} />}</h4>
+        <h4><IconVenn />Competition{onHelp && <HelpButton topic="competition" onOpen={onHelp} />}</h4>
         <CompetitionPanel competition={topic.competition} onHelp={onHelp} />
       </div>
 
@@ -335,7 +347,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
               can ask on Thursday is a different artefact from a page you read. */}
       {(topic.description?.qualifying_questions?.length || topic.description?.objection_handling?.length) ? (
         <div className="detail-section" id="section-questions">
-          <h4>Questions to ask, objections to expect</h4>
+          <h4><IconChat />Questions to ask, objections to expect</h4>
           {topic.description?.qualifying_questions?.length ? (
             <ol className="qa-list">
               {topic.description.qualifying_questions.map((question, index) => (
@@ -354,7 +366,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- the generated long-form description (FR-14, FR-18) --- */}
       <div className="detail-section" id="section-description">
-        <h4>Detailed description{onHelp && <HelpButton topic="description" onOpen={onHelp} />}</h4>
+        <h4><IconDoc />Detailed description{onHelp && <HelpButton topic="description" onOpen={onHelp} />}</h4>
         <DescriptionPanel topicId={topic.id} description={topic.description}
                           signals={topic.signals} onHelp={onHelp}
                           onRegenerated={reload} />
@@ -369,7 +381,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- where it delivers value and for whom --- */}
       <div className="detail-section" id="section-value">
-        <h4>Where it delivers value, and for whom</h4>
+        <h4><IconPeople />Where it delivers value, and for whom</h4>
         {/* Three different dimensions were rendered as one undifferentiated
             strip of pills: a reader could not tell a business domain from a
             buyer from a country code. */}
@@ -391,7 +403,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- can we play / can we win (FR-15, FR-29, LK-08) --- */}
       <div className="detail-section" id="section-assets">
-        <h4>Can we play, can we win{onHelp && <HelpButton topic="links" onOpen={onHelp} />}</h4>
+        <h4><IconCube />Can we play, can we win{onHelp && <HelpButton topic="links" onOpen={onHelp} />}</h4>
         {topic.links.length === 0 && (
           <div style={{ color: 'var(--text-muted)' }}>No linked assets — white space.</div>
         )}
@@ -448,7 +460,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- score breakdown, expanded (NFR-01, §4.9) --- */}
       <div className="detail-section" id="section-score">
-        <h4>Score breakdown{onHelp && <HelpButton topic="attractiveness" onOpen={onHelp} />}</h4>
+        <h4><IconGauge />Score breakdown{onHelp && <HelpButton topic="attractiveness" onOpen={onHelp} />}</h4>
         <ScoreBreakdown title="Attractiveness" block={topic.attractiveness} weights={meta.attractiveness_weights} />
         <ScoreBreakdown title="Right to win" block={topic.right_to_win} weights={meta.right_to_win_weights} />
         {onExplain && (
@@ -464,7 +476,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- horizon derivation (FR-08) --- */}
       <div className="detail-section">
-        <h4>Time horizon{onHelp && <HelpButton topic="horizon" onOpen={onHelp} />}</h4>
+        <h4><IconClock />Time horizon{onHelp && <HelpButton topic="horizon" onOpen={onHelp} />}</h4>
         <div style={{ fontSize: 12.5 }}>
           <b>{topic.horizon?.toUpperCase() ?? '—'}</b>{' '}
           <span style={{ color: 'var(--text-muted)' }}>derived, not judged — basis: {topic.horizon_basis}</span>
@@ -476,7 +488,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- next action for the current role (FR-17, AC-03) --- */}
       <div className="detail-section" id="section-action">
-        <h4>Next action, by role</h4>
+        <h4><IconTarget />Next action, by role</h4>
         {!topic.next_actions[role] && (
           <div style={{ color: 'var(--text-muted)' }}>No action generated for this role yet.</div>
         )}
@@ -495,12 +507,12 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
       {workflowMeta && (
         <>
           <div className="detail-section" id="section-workflow">
-            <h4>Workflow{onHelp && <HelpButton topic="workflow" onOpen={onHelp} />}</h4>
+            <h4><IconBoard />Workflow{onHelp && <HelpButton topic="workflow" onOpen={onHelp} />}</h4>
             <StageControl topic={topic} role={role} meta={workflowMeta} onMoved={reload} />
           </div>
 
           <div className="detail-section">
-            <h4>Team conviction{onHelp && <HelpButton topic="conviction" onOpen={onHelp} />}</h4>
+            <h4><IconVoices />Team conviction{onHelp && <HelpButton topic="conviction" onOpen={onHelp} />}</h4>
             <ConvictionPanel topic={topic} />
             <div style={{ marginTop: 10 }}>
               <AssessmentWidget topic={topic} role={role} meta={workflowMeta} onSubmitted={reload} onHelp={onHelp} />
@@ -511,7 +523,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- momentum made visible (§4.6, §4.4.5) --- */}
       <div className="detail-section" id="section-timeline">
-        <h4>Evidence over time{onHelp && <HelpButton topic="evidence_timeline" onOpen={onHelp} />}</h4>
+        <h4><IconTrend />Evidence over time{onHelp && <HelpButton topic="evidence_timeline" onOpen={onHelp} />}</h4>
         <EvidenceTimeline months={timeline} />
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
           Momentum is the slope of this series, so the shape is what the number was computed from.
@@ -520,7 +532,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- feedback (FR-23) --- */}
       <div className="detail-section">
-        <h4>Is this useful?</h4>
+        <h4><IconThumb />Is this useful?</h4>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['useful', 'not_useful', 'wrong'] as const).map((verdict) => (
             <button key={verdict} aria-pressed={rated === verdict} onClick={() => rate(verdict)}>
@@ -533,7 +545,7 @@ export default function TopicDetail({ topicId, role, meta, rank, workflowMeta, o
 
       {/* --- sources (NFR-02 lineage) --- */}
       <div className="detail-section" id="section-sources">
-        <h4>Sources ({topic.signals?.length ?? 0}){onHelp && <HelpButton topic="source_tier" onOpen={onHelp} />}</h4>
+        <h4><IconLink />Sources ({topic.signals?.length ?? 0}){onHelp && <HelpButton topic="source_tier" onOpen={onHelp} />}</h4>
         <div className="scroll-x">
           <table className="data">
             <thead>

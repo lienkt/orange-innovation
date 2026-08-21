@@ -169,7 +169,7 @@ OUTPUT — a single JSON object:
 
 def synthesis_user_prompt(cluster: dict[str, Any], target_cells: list[dict[str, str]] | None = None,
                           lens: str | None = None, constraints: list[str] | None = None,
-                          brief: str | None = None) -> str:
+                          brief: str | None = None, avoid: list[str] | None = None) -> str:
     """Evidence block (§4.4.2 element 3), optionally targeted at empty grid cells.
 
     `lens` steers one generation pass toward a particular kind of evidence.
@@ -205,6 +205,25 @@ def synthesis_user_prompt(cluster: dict[str, Any], target_cells: list[dict[str, 
             f"  {signal['title']}\n"
             f"  {signal['extract'][:500]}"
         )
+
+    if avoid:
+        # §4.4.5 makes the taxonomy triple the canonical identity, so a candidate
+        # landing on an occupied cell is not a new opportunity space — it is an
+        # update to one that exists. That is the right behaviour on a refresh and
+        # the wrong answer to "find me five more", and the model cannot avoid a
+        # collision it was never told about. Stated as cells rather than
+        # statements because the cell is what identity is defined on.
+        lines += [
+            "",
+            "ALREADY IN THE RADAR — these taxonomy cells are taken.",
+            "A candidate landing on one of them updates the existing space rather than",
+            "creating anything, so it does not answer the request. Propose a DIFFERENT",
+            "cell that this evidence also supports — a different technology against the",
+            "same use case, a different vertical facing the same problem, a narrower use",
+            "case within the same domain. If the evidence supports nothing outside this",
+            "list, return an empty list; that is a real answer.",
+        ]
+        lines += [f"  - {cell}" for cell in avoid]
 
     if target_cells:
         # §4.4.3 coverage-driven prompting: the pipeline knows which taxonomy
@@ -572,4 +591,211 @@ def format_topic_for_description(topic: dict[str, Any], signals: list[dict[str, 
         "",
         "Write the description. Return JSON only.",
     ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Competitor profiling (§4.3.3 extension)
+# ---------------------------------------------------------------------------
+
+PROMPT_VERSION_COMPETITOR_PROFILE = "cprofile-v1"
+PROMPT_VERSION_COMPETITOR_ANALYSIS = "canalysis-v1"
+
+
+def competitor_profile_system_prompt(cfg: Config) -> str:
+    """Turn one competitor's own pages into a structured profile.
+
+    The input is marketing copy: the most self-serving text a company produces.
+    That is fine, because the question being asked of it is not "is this true"
+    but "what does this company say it sells, and to whom" — and for that
+    question the vendor is the primary source.
+
+    What it must not become is a set of assertions the radar then repeats as
+    fact. So the same defences as synthesis apply: every claim carries the page
+    that made it, taxonomy values come from the closed vocabulary, and a number
+    on a marketing page is still a number a model may not restate.
+    """
+    return f"""{vocabulary_block(cfg)}
+
+YOUR TASK
+You are reading pages published by ONE company, taken from its own website.
+Produce a structured profile of what that company says it sells, to whom, and
+with what.
+
+This is competitive intelligence for Orange Business. It will be shown next to
+an Orange opportunity space, so it has to be accurate about the competitor and
+useless as marketing. Describe their position; do not adopt their language.
+
+ABSOLUTE RULES — a violation drops the claim or the whole field
+1. THEIR PAGES ONLY. The supplied page extracts are the only material you may
+   use. You may not add anything you happen to know about this company —
+   including facts that are true. An unsupported claim is worse than a thin
+   profile, because a thin profile is honest about what was read.
+2. CITE EVERY CLAIM. Each entry in `claims` carries a `pages` array of page ids
+   from the supplied block. An uncited claim is discarded, not rewritten.
+3. CLOSED VOCABULARY. `verticals`, `use_cases` and `technologies` must be ids
+   from the vocabulary above. If their page describes something with no id in
+   the vocabulary, leave it out rather than inventing an id or stretching one.
+4. NO NUMBERS. No market share, growth rate, customer count, revenue or
+   percentage — not even one they printed themselves. Marketing figures are
+   unmethodical by construction and the radar publishes only computed ones.
+5. NAME ONLY THEIR OWN THINGS. `named_offers` are product or service names this
+   company uses for its own offerings, spelled as they spell them. Do not name
+   their customers, and do not name Orange.
+6. SAY WHAT IS ABSENT. If the pages do not establish which verticals they serve,
+   return an empty array. Silence is a finding; a guess is a defect.
+
+OUTPUT — a single JSON object:
+{{
+  "positioning": "<2-4 sentences: what this company presents itself as, and to whom. Neutral register.>",
+  "claims": [
+    {{"claim": "<one specific thing they say they do>", "pages": ["<page id>", ...]}}
+  ],
+  "verticals": ["<vocabulary id>", ...],
+  "use_cases": ["<vocabulary id>", ...],
+  "technologies": ["<vocabulary id>", ...],
+  "named_offers": [{{"name": "<their own product name>", "pages": ["<page id>", ...]}}],
+  "go_to_market": "<1-2 sentences: direct, channel, partner-led, platform — only if the pages say>"
+}}
+
+Six to twelve claims. Prefer the specific over the sweeping: "runs a managed SOC
+with regional analysts" beats "is a leader in cybersecurity"."""
+
+
+def format_competitor_for_profile(entry: dict[str, Any], pages: list[dict[str, Any]]) -> str:
+    """The page block for one competitor."""
+    lines = [
+        f"COMPANY: {entry['label']}",
+        f"Register type: {entry.get('type')}",
+        f"Website: {entry.get('website')}",
+        "",
+        "PAGES (id | kind | title | extract)",
+    ]
+    for page in pages:
+        title = (page.get("title") or "").strip()
+        lines.append(
+            f"[{page['id']}] ({page.get('kind')}) {title}\n    {page.get('extract', '')[:1800]}"
+        )
+    lines += [
+        "",
+        "Cite page ids exactly as they appear in square brackets above.",
+    ]
+    return "\n".join(lines)
+
+
+def competitor_analysis_system_prompt(cfg: Config) -> str:
+    """Compare the competitors matched to one opportunity space, and say how
+    Orange differentiates against each of them individually.
+
+    The differentiation paragraph is the part a salesperson actually uses, and
+    it is also the part most likely to become a slogan. Two constraints keep it
+    honest: it may only cite Orange assets that are LINKED to this topic in the
+    business graph, and it must name a real asymmetry rather than assert
+    superiority. Where Orange has nothing to differentiate with, it has to say
+    so — a fabricated advantage is discovered in the meeting.
+    """
+    return f"""{orange_context_block(cfg)}
+
+YOUR TASK
+One Orange Business opportunity space, and the competitors the register has
+matched to it. For each competitor, write two things:
+
+  activity        What this competitor is doing in THIS space — grounded in
+                  their own published pages, cited by page id. If their pages
+                  say nothing about this space, say that instead of inferring.
+
+  differentiation One paragraph on how Orange differentiates against THIS
+                  competitor specifically, for THIS opportunity. Not a general
+                  Orange pitch — the asymmetry between these two companies here.
+
+Then one short `field` paragraph on the shape of the field as a whole.
+
+WHAT MAKES A DIFFERENTIATION PARAGRAPH USABLE
+  * It names the asymmetry. Sovereignty and EU data residency against a
+    hyperscaler; an owned network and field operations against a systems
+    integrator; integration breadth against a point specialist; regulatory
+    footing against a vendor with no European compliance story.
+  * It is anchored in a SUPPLIED Orange asset — a named offer, a named
+    certification, a named partner at its tier, or a published reference in this
+    vertical. If none was supplied, the honest paragraph says Orange would be
+    competing on price and delivery rather than on a structural advantage.
+  * It concedes what is true. A paragraph that gives the competitor nothing
+    reads as marketing and gets discounted whole.
+  * It is actionable: what to lead with, and what to avoid arguing about.
+
+ABSOLUTE RULES — a violation drops that competitor's entry
+1. SUPPLIED MATERIAL ONLY. Competitor page extracts, Orange linked assets, and
+   the topic's own evidence. Nothing else, including things you know.
+2. CITE ACTIVITY. `activity` carries `pages` — page ids from that competitor's
+   block. No pages means the activity text must say the pages are silent on this
+   space, and `pages` is empty.
+3. NAME ONLY SUPPLIED ORANGE ASSETS in `differentiation`, spelled exactly as
+   supplied. `orange_assets` lists the ones you used and is validated.
+4. NO NUMBERS anywhere. No market share, no growth rate, no percentage, no
+   monetary value — the brief carries computed figures and yours would contradict
+   them.
+5. NO CUSTOMER NAMES beyond the published references supplied to you.
+6. NO SUPERLATIVES ABOUT ORANGE. "Better", "leading" and "best-in-class" are not
+   differentiators; a named capability the competitor demonstrably lacks is.
+
+OUTPUT — a single JSON object:
+{{
+  "competitors": [
+    {{
+      "id": "<competitor id, exactly as supplied>",
+      "activity": {{"text": "<2-4 sentences>", "pages": ["<page id>", ...]}},
+      "differentiation": "<one paragraph, 3-5 sentences>",
+      "orange_assets": ["<supplied asset name used>", ...],
+      "concession": "<one sentence: what this competitor genuinely does better here>"
+    }}
+  ],
+  "field": "<3-5 sentences on the shape of the field and where the gap is>"
+}}
+
+Return an entry for every competitor supplied, in the order supplied."""
+
+
+def format_topic_for_competitor_analysis(topic: dict[str, Any], labels: dict[str, str],
+                                         entries: list[dict[str, Any]],
+                                         assets: dict[str, list[str]],
+                                         signals: list[dict[str, Any]]) -> str:
+    """The evidence block for one topic's competitive analysis."""
+    lines = [
+        f"OPPORTUNITY SPACE {topic['id']}",
+        f"Statement: {topic['statement']}",
+        f"Vertical: {labels.get('vertical')}  |  Use case: {labels.get('use_case')}  "
+        f"|  Technology: {labels.get('technology')}",
+        "",
+        "ORANGE ASSETS LINKED TO THIS SPACE — the only Orange things you may name",
+    ]
+    if any(assets.values()):
+        for kind, names in assets.items():
+            if names:
+                lines.append(f"  {kind}: {', '.join(names)}")
+    else:
+        lines.append("  (none linked — say so rather than inventing an advantage)")
+
+    lines += ["", "WHY THIS SPACE IS LIVE (topic evidence, for context only)"]
+    for sig in signals[:8]:
+        lines.append(f"  - {sig.get('title', '')[:160]} ({sig.get('publisher')})")
+
+    lines += ["", "COMPETITORS MATCHED TO THIS SPACE"]
+    for entry in entries:
+        lines.append("")
+        lines.append(f"COMPETITOR id={entry['id']}  {entry['label']}  "
+                     f"[type: {entry.get('type_label', entry.get('type'))}]")
+        lines.append(f"  Presence: {entry.get('basis')}  |  Orange relationship: "
+                     f"{entry.get('relationship', 'competitor')}")
+        if entry.get("profile_status") != "profiled":
+            lines.append(f"  NO PROFILE — {entry.get('profile_status')}: "
+                         f"{entry.get('profile_reason') or 'their site was not read'}. "
+                         f"Say that their published position is unread rather than inferring one.")
+            continue
+        if entry.get("positioning"):
+            lines.append(f"  Positioning: {entry['positioning']}")
+        for claim in entry.get("relevant_claims", [])[:8]:
+            pages = ", ".join(claim.get("pages", []))
+            lines.append(f"  [{pages}] {claim.get('claim')}")
+        if entry.get("named_offers"):
+            lines.append(f"  Their named offers: {', '.join(entry['named_offers'][:8])}")
     return "\n".join(lines)

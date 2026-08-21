@@ -666,6 +666,62 @@ class ReadModel:
             "sources": {r["source_id"]: r["n"] for r in sources},
             "geographies": dict(sorted(geo.items(), key=lambda kv: -kv[1])[:25]),
             "topics_per_vertical": {r["vertical"]: r["n"] for r in verticals},
+            "competitors": self._competitor_coverage(),
+        }
+
+    def _competitor_coverage(self) -> dict[str, Any]:
+        """How much of the competitive picture actually exists (NFR-08).
+
+        This view is where the radar says what it does not know, and competitor
+        profiling has three separate gaps that a reader would otherwise have to
+        infer from an empty panel:
+
+          the register   how many competitors have been read from their own site,
+                         and — named individually — which ones refused. A blocked
+                         competitor is a permanent gap, not a pending one.
+          the assessment how many spaces have a competitive intensity at all. A
+                         space without one shows an empty competitor tab, and
+                         that is a processing gap rather than a finding.
+          the comparison how many have the written per-competitor analysis, which
+                         costs a model call and is therefore never universal.
+
+        Reported together because they compound: a written comparison over a
+        space whose competitors are mostly unprofiled is thinner than the same
+        comparison elsewhere, and only these three numbers side by side say so.
+        """
+        register = self.cfg.competitors_raw["competitors"]
+        rows = {r["competitor_id"]: r for r in self.db.query(
+            "SELECT competitor_id, status, status_reason FROM competitor_profiles")}
+        labels = {e["id"]: e["label"] for e in register}
+
+        by_status: dict[str, int] = {}
+        unread_named: dict[str, list[str]] = {}
+        for entry in register:
+            row = rows.get(entry["id"])
+            status = row["status"] if row else "unread"
+            by_status[status] = by_status.get(status, 0) + 1
+            if status != "profiled":
+                unread_named.setdefault(status, []).append(labels[entry["id"]])
+
+        topics_total = self.db.query_one(
+            "SELECT COUNT(*) AS n FROM opportunity_spaces WHERE merged_into IS NULL")["n"]
+        assessed = self.db.query_one("SELECT COUNT(*) AS n FROM topic_competition")["n"]
+        analysed = self.db.query_one(
+            "SELECT COUNT(*) AS n FROM topic_competitor_analysis")["n"]
+        written = self.db.query_one(
+            "SELECT COUNT(*) AS n FROM topic_competitor_analysis WHERE narrative IS NOT NULL")["n"]
+        pages = self.db.query_one("SELECT COUNT(*) AS n FROM competitor_pages")["n"]
+
+        return {
+            "register_total": len(register),
+            "register_version": self.cfg.competitors_raw["version"],
+            "by_status": by_status,
+            "unread_named": {k: sorted(v) for k, v in unread_named.items()},
+            "pages_read": pages,
+            "topics_total": topics_total,
+            "topics_assessed": assessed,
+            "topics_analysed": analysed,
+            "topics_written": written,
         }
 
 

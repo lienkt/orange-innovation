@@ -207,3 +207,88 @@ llm:
   # generation calls plus a critic and entailment call per candidate, so this
   # multiplies into real concurrency against the provider — raise with care.
   max_parallel_clusters: 4
+
+# ---- Competitor profiling (§4.3.3 extension).
+#
+# The register says what a competitor sells. A profile says what they say they
+# sell, in their own words, with the page that said it. That is weaker evidence
+# than a tender notice and stronger than an assumption, and it is treated
+# accordingly: a competitor's own site is TIER 4 everywhere it is scored, and it
+# is never allowed to lift attractiveness on its own (SC-09).
+competitor_intel:
+  # Pages retained per competitor. The sitemap of a global integrator runs to
+  # tens of thousands of URLs; what is wanted is the part that says what they
+  # sell and to whom, not the newsroom.
+  max_pages_per_competitor: 40
+  # Child sitemaps read from a sitemap index before giving up on it.
+  max_sitemaps_per_competitor: 12
+  # Seconds between requests to one host. Deliberately slower than the signal
+  # connectors: these are not APIs offered for consumption, and the profiler
+  # runs rarely.
+  min_interval_seconds: 2.0
+  # Competitors crawled concurrently. Per-host pacing is unaffected.
+  max_parallel_competitors: 8
+  # Stored text per page. DR-08 applies here exactly as it does to signals:
+  # by reference plus an extract, never a mirror.
+  max_page_chars: 6000
+  # URL path fragments worth reading — what the company sells, to whom.
+  include_patterns:
+    - solution
+    - industr
+    - product
+    - service
+    - platform
+    - what-we-do
+    - use-case
+    - capabilit
+    - offering
+    - customer-stor
+    - case-stud
+    - success-stor
+    - client-stor
+  # Never worth reading: newsroom churn, legal boilerplate, hiring.
+  exclude_patterns:
+    - /blog/
+    - /insight
+    - /expert-perspective
+    - /perspective
+    - /viewpoint
+    - /thought-leadership
+    - /news/
+    - /press
+    - /career
+    - /job
+    - /legal
+    - /privacy
+    - /cookie
+    - /terms
+    - /investor
+    - /event
+    - /webinar
+    - /podcast
+    - /author/
+    - /tag/
+    - /search
+    - /docs
+    - /documentation
+    - /support
+    - /help
+    - /api
+    - /developer
+    - /changelog
+    - /glossary
+    - /resource
+    - /library
+    - /login
+    - /contact
+    - .pdf
+    - .zip
+    - .jpg
+    - .png
+  # Profiles generated per run. One model call each.
+  max_profiles_per_run: 70
+  max_parallel_profiles: 4
+  # Per-topic competitor analysis. The structural join is free; only the
+  # comparative narrative costs a call, so it is capped like descriptions are.
+  max_analyses_per_run: 40
+  max_parallel_analyses: 4

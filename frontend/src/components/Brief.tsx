@@ -162,6 +162,25 @@ export default function BriefView({ topic, onHelp, recent = [], onSelectTopic }:
         </div>
       )}
 
+      {/* Incomplete is a different problem from stale and gets its own banner.
+          A stale brief was right when it was built; an incomplete one never
+          carried a section that current briefs carry, so it is not "old" — it
+          is short, and waiting will not fix it. */}
+      {meta?.incomplete && exists && (
+        <div style={{ padding: '8px 14px' }}>
+          <div className="incomplete-note">
+            <b>Incomplete:</b> this brief was built before the competitor analysis section
+            existed, so it does not contain it.
+            {meta.missing_sections?.length ? (
+              <ul>{meta.missing_sections.map((sec) => <li key={sec}>{sec}</li>)}</ul>
+            ) : null}
+            <button className="fs-enter" disabled={busy} onClick={() => generate(true)}>
+              {busy ? <><span className="spinner" /> Rebuilding… {elapsed}s</> : 'Regenerate with the missing section'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div style={{ padding: '8px 14px' }}>
           <div className="stale-note" style={{ margin: 0 }}>{error}</div>

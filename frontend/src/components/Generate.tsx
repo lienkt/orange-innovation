@@ -288,6 +288,16 @@ function RunReport({ job, onCancel, onOpenTopic }: {
               {synthesis.clusters_consumed ?? 0} theme cluster
               {synthesis.clusters_consumed === 1 ? '' : 's'}
               {typeof usage?.calls === 'number' && ` · ${usage.calls} model calls (${usage.provider})`}.
+              {/* The usual reason a run falls short, so it gets said rather than
+                  left for the reader to infer from "asked for 5, created 3". */}
+              {(synthesis.duplicate_of_existing ?? 0) > 0 && (
+                <>
+                  {' '}{synthesis.duplicate_of_existing} landed on taxonomy cells the radar already
+                  holds; the run named those back to the model and asked again
+                  {(synthesis.duplicate_retries ?? 0) > 0
+                    && ` (${synthesis.duplicate_retries} extra pass${synthesis.duplicate_retries === 1 ? '' : 'es'})`}.
+                </>
+              )}
             </p>
           )}
         </div>

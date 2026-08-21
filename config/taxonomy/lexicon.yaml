@@ -1,0 +1,826 @@
+# Multilingual lexicon — the non-English half of the relevance gate.
+#
+# WHY THIS FILE EXISTS. The gate in pipeline/ingest.py is built from the
+# vocabulary labels and synonyms, and every one of those is English. FR-28
+# requires English AND French ingestion, and Table 36 lists anglophone bias as a
+# principal risk — but the first live corpus showed the ingestion half working
+# and the gate half not: French signals averaged 0.06 relevance against 0.26 for
+# English, and 52% never received a signal type at all, against 8.6% for
+# English. The pipeline was paying to collect French, Dutch and German text and
+# then discarding it for not containing English words.
+#
+# A term scoring zero is dropped BEFORE the model ever sees it (stage 3), so
+# this is not a precision refinement — it decides whether a whole language's
+# corpus exists downstream at all.
+#
+# SCOPE. Terms are the ones that actually appear in news copy and tender
+# subjects, not literal dictionary translations. Deliberately conservative:
+# a term so generic it matches everything ("données", "Netz", "rete") is worse
+# than no term, because the gate saturates at three distinct hits. Terms shorter
+# than four characters are dropped by the gate regardless.
+#
+# `general` carries the procurement and regulatory vernacular that is not tied
+# to one vocabulary id. A tender is titled "marché de services de
+# télécommunications", never "network automation", so without these the national
+# procurement connectors (BOAMP 8% gate pass, TenderNed) stay near zero.
+#
+# Every key must be a known vocabulary id — config.py fails at load time
+# otherwise, on the same principle as the crosswalks (§4.5.2).
+version: "2026-08-a"
+owner: "taxonomy-curator"
+languages: [fr, de, es, it, nl]
+
+general:
+  fr:
+    - marché public
+    - appel d'offres
+    - accord-cadre
+    - cahier des charges
+    - maîtrise d'œuvre
+    - infogérance
+    - prestation de services
+    - assistance à maîtrise d'ouvrage
+    - systèmes d'information
+    - transformation numérique
+    - déploiement
+    - mise en conformité
+    - réglementation
+    - directive européenne
+    - décret d'application
+    - feuille de route
+    - retour d'expérience
+    - montée en charge
+  de:
+    - öffentliche ausschreibung
+    - vergabeverfahren
+    - rahmenvertrag
+    - leistungsbeschreibung
+    - dienstleistungsauftrag
+    - digitalisierung
+    - inbetriebnahme
+    - umsetzungsfrist
+    - richtlinie
+    - verordnung
+    - meldepflicht
+    - nachweispflicht
+    - betreiber kritischer infrastrukturen
+    - informationssicherheit
+    - rechenzentrum
+  es:
+    - contratación pública
+    - licitación
+    - pliego de condiciones
+    - acuerdo marco
+    - prestación de servicios
+    - transformación digital
+    - despliegue
+    - cumplimiento normativo
+    - reglamento
+    - directiva europea
+    - infraestructura crítica
+    - centro de datos
+  it:
+    - appalto pubblico
+    - bando di gara
+    - accordo quadro
+    - capitolato
+    - affidamento
+    - trasformazione digitale
+    - messa in opera
+    - adeguamento normativo
+    - regolamento
+    - direttiva europea
+    - infrastrutture critiche
+    - centro dati
+  nl:
+    - aanbesteding
+    - overheidsopdracht
+    - raamovereenkomst
+    - bestek
+    - dienstverlening
+    - digitalisering
+    - uitrol
+    - naleving
+    - richtlijn
+    - verordening
+    - vitale infrastructuur
+    - datacenter
+    - informatiebeveiliging
+
+terms:
+
+  # ---------------- Domains ----------------
+  ox_smart_industries:
+    fr: [industrie du futur, industrie 4.0, usine connectée, smart industry]
+    de: [industrie 4.0, vernetzte produktion, smarte fabrik, fertigungsindustrie]
+    es: [industria 4.0, fábrica conectada, industria inteligente]
+    it: [industria 4.0, fabbrica connessa, industria intelligente]
+    nl: [industrie 4.0, slimme fabriek, verbonden productie]
+  connectivity_solutions:
+    fr: [connectivité, réseau d'entreprise, télécommunications, raccordement]
+    de: [konnektivität, unternehmensnetz, telekommunikation, anbindung]
+    es: [conectividad, red corporativa, telecomunicaciones]
+    it: [connettività, rete aziendale, telecomunicazioni]
+    nl: [connectiviteit, bedrijfsnetwerk, telecommunicatie]
+  cybersecurity:
+    fr: [cybersécurité, sécurité informatique, sécurité des systèmes d'information, cyberattaque, cybermenace]
+    de: [cybersicherheit, it-sicherheit, informationssicherheit, cyberangriff, bedrohungslage]
+    es: [ciberseguridad, seguridad informática, ciberataque, amenaza cibernética]
+    it: [cybersicurezza, sicurezza informatica, attacco informatico, minaccia cibernetica]
+    nl: [cyberbeveiliging, informatiebeveiliging, cyberaanval, digitale dreiging]
+  cloud:
+    fr: [informatique en nuage, hébergement, migration vers le cloud, cloud de confiance]
+    de: [cloud-dienste, hosting, cloud-migration, vertrauenswürdige cloud]
+    es: [computación en la nube, alojamiento, migración a la nube]
+    it: [cloud computing, hosting, migrazione al cloud]
+    nl: [cloudcomputing, hosting, cloudmigratie]
+  cx_customer_experience:
+    fr: [expérience client, relation client, parcours client, service client]
+    de: [kundenerlebnis, kundenbeziehung, customer journey, kundenservice]
+    es: [experiencia de cliente, relación con el cliente, atención al cliente]
+    it: [esperienza cliente, relazione con il cliente, assistenza clienti]
+    nl: [klantervaring, klantcontact, klantreis, klantenservice]
+  ex_employee_experience:
+    fr: [expérience collaborateur, environnement de travail numérique, travail hybride]
+    de: [mitarbeitererlebnis, digitaler arbeitsplatz, hybrides arbeiten]
+    es: [experiencia del empleado, puesto de trabajo digital, trabajo híbrido]
+    it: [esperienza dipendente, postazione di lavoro digitale, lavoro ibrido]
+    nl: [medewerkerservaring, digitale werkplek, hybride werken]
+
+  # ---------------- Verticals ----------------
+  manufacturing:
+    fr: [industrie manufacturière, usine, site de production, agroalimentaire, chimie]
+    de: [fertigung, produktionsstandort, verarbeitendes gewerbe, chemieindustrie]
+    es: [fabricación, planta de producción, industria manufacturera]
+    it: [manifatturiero, stabilimento produttivo, industria di processo]
+    nl: [maakindustrie, productielocatie, procesindustrie]
+  retail:
+    fr: [commerce de détail, grande distribution, points de vente, magasin]
+    de: [einzelhandel, filialnetz, ladengeschäft, lebensmitteleinzelhandel]
+    es: [comercio minorista, gran distribución, punto de venta]
+    it: [commercio al dettaglio, grande distribuzione, punto vendita]
+    nl: [detailhandel, winkelketen, supermarkt]
+  financial_services:
+    fr: [banque, assurance, services financiers, établissement de crédit, assureur]
+    de: [bank, versicherung, finanzdienstleistungen, kreditinstitut]
+    es: [banca, seguros, servicios financieros, entidad de crédito]
+    it: [banca, assicurazione, servizi finanziari, istituto di credito]
+    nl: [bank, verzekeraar, financiële dienstverlening]
+  public_sector:
+    fr: [secteur public, collectivité territoriale, administration publique, service public, mairie]
+    de: [öffentliche verwaltung, kommune, behörde, öffentlicher dienst]
+    es: [sector público, administración pública, ayuntamiento, entidad local]
+    it: [settore pubblico, pubblica amministrazione, ente locale, comune]
+    nl: [overheid, gemeente, publieke sector, rijksoverheid]
+  defense:
+    fr: [défense, forces armées, ministère des armées, militaire]
+    de: [verteidigung, streitkräfte, bundeswehr, militärisch]
+    es: [defensa, fuerzas armadas, ministerio de defensa]
+    it: [difesa, forze armate, ministero della difesa]
+    nl: [defensie, krijgsmacht, ministerie van defensie]
+  automotive:
+    fr: [automobile, constructeur automobile, équipementier, véhicule connecté]
+    de: [automobilindustrie, fahrzeughersteller, zulieferer, vernetztes fahrzeug]
+    es: [automoción, fabricante de automóviles, vehículo conectado]
+    it: [automotive, casa automobilistica, veicolo connesso]
+    nl: [automotive, autofabrikant, verbonden voertuig]
+  transport_logistics:
+    fr: [transport et logistique, chaîne logistique, entrepôt, ferroviaire, portuaire]
+    de: [transport und logistik, lieferkette, lagerhaus, schienenverkehr, hafen]
+    es: [transporte y logística, cadena logística, almacén, ferroviario, portuario]
+    it: [trasporti e logistica, catena logistica, magazzino, ferroviario, portuale]
+    nl: [transport en logistiek, toeleveringsketen, magazijn, spoorvervoer, haven]
+  construction:
+    fr: [bâtiment et travaux publics, chantier, construction, génie civil]
+    de: [bauwesen, baustelle, hochbau, tiefbau]
+    es: [construcción, obra, ingeniería civil]
+    it: [edilizia, cantiere, ingegneria civile]
+    nl: [bouwsector, bouwplaats, civiele techniek]
+  life_sciences:
+    fr: [sciences de la vie, industrie pharmaceutique, biotechnologie, essai clinique]
+    de: [life sciences, pharmaindustrie, biotechnologie, klinische studie]
+    es: [ciencias de la vida, industria farmacéutica, biotecnología, ensayo clínico]
+    it: [scienze della vita, industria farmaceutica, biotecnologie, studio clinico]
+    nl: [life sciences, farmaceutische industrie, biotechnologie, klinisch onderzoek]
+  energy:
+    fr: [énergie, réseau électrique, gestionnaire de réseau, production d'électricité, gaz]
+    de: [energiewirtschaft, stromnetz, netzbetreiber, stromerzeugung, gasversorgung]
+    es: [energía, red eléctrica, operador de red, generación eléctrica]
+    it: [energia, rete elettrica, gestore di rete, produzione elettrica]
+    nl: [energie, elektriciteitsnet, netbeheerder, energieopwekking]
+  wholesale:
+    fr: [commerce de gros, grossiste, négoce, distribution professionnelle]
+    de: [großhandel, grossist, handelsunternehmen]
+    es: [comercio mayorista, distribuidor mayorista]
+    it: [commercio all'ingrosso, grossista]
+    nl: [groothandel, distributeur]
+  media_entertainment:
+    fr: [médias, audiovisuel, diffusion, production de contenus]
+    de: [medien, rundfunk, ausstrahlung, contentproduktion]
+    es: [medios de comunicación, audiovisual, radiodifusión]
+    it: [media, audiovisivo, radiodiffusione]
+    nl: [media, omroep, contentproductie]
+  healthcare:
+    fr: [santé, hôpital, établissement de santé, centre hospitalier, soins]
+    de: [gesundheitswesen, krankenhaus, klinikum, patientenversorgung]
+    es: [sanidad, hospital, centro sanitario, atención sanitaria]
+    it: [sanità, ospedale, azienda sanitaria, assistenza sanitaria]
+    nl: [zorgsector, ziekenhuis, zorginstelling, patiëntenzorg]
+  natural_resources:
+    fr: [ressources naturelles, industrie minière, exploitation forestière, eau et assainissement]
+    de: [rohstoffe, bergbau, forstwirtschaft, wasserwirtschaft]
+    es: [recursos naturales, minería, explotación forestal, gestión del agua]
+    it: [risorse naturali, industria mineraria, gestione idrica]
+    nl: [natuurlijke hulpbronnen, mijnbouw, waterbeheer]
+  aerospace_defense:
+    fr: [aéronautique, spatial, aérospatial, industrie de défense]
+    de: [luft- und raumfahrt, raumfahrtindustrie, verteidigungsindustrie]
+    es: [aeroespacial, industria aeronáutica, industria de defensa]
+    it: [aerospaziale, industria aeronautica, industria della difesa]
+    nl: [luchtvaart en ruimtevaart, defensie-industrie]
+
+  # ---------------- Technologies ----------------
+  private_5g:
+    fr: [5g privé, réseau privé mobile, réseau 5g industriel, 4g privée]
+    de: [privates 5g, campusnetz, 5g-campusnetz, privates mobilfunknetz]
+    es: [5g privada, red privada móvil, red 5g industrial]
+    it: [5g privato, rete privata mobile, rete 5g industriale]
+    nl: [privaat 5g, privaat mobiel netwerk, 5g-campusnetwerk]
+  5g_ran_oran:
+    fr: [réseau d'accès radio, open ran, station de base]
+    de: [funkzugangsnetz, open ran, basisstation]
+    es: [red de acceso radio, open ran, estación base]
+    it: [rete di accesso radio, open ran, stazione radio base]
+    nl: [radiotoegangsnetwerk, open ran, basisstation]
+  network_slicing:
+    fr: [découpage réseau, tranche de réseau, slicing réseau]
+    de: [netzwerk-slicing, netzsegmentierung]
+    es: [segmentación de red, network slicing]
+    it: [segmentazione di rete, network slicing]
+    nl: [netwerkslicing, netwerksegmentatie]
+  sd_wan:
+    fr: [réseau défini par logiciel, sd-wan, réseau étendu logiciel]
+    de: [softwaredefiniertes wan, sd-wan]
+    es: [red definida por software, sd-wan]
+    it: [rete definita dal software, sd-wan]
+    nl: [softwaregedefinieerd wan, sd-wan]
+  sase:
+    fr: [périmètre de service d'accès sécurisé, accès réseau sécurisé]
+    de: [sicherer zugriffsdienst, sase-architektur]
+    es: [acceso seguro perimetral, arquitectura sase]
+    it: [accesso sicuro perimetrale, architettura sase]
+    nl: [veilige toegangsdienst, sase-architectuur]
+  satellite_ntn:
+    fr: [connectivité satellitaire, liaison satellite, constellation satellite]
+    de: [satellitenkommunikation, satellitenverbindung, satellitenkonstellation]
+    es: [conectividad por satélite, enlace satelital, constelación de satélites]
+    it: [connettività satellitare, collegamento satellitare]
+    nl: [satellietverbinding, satellietcommunicatie]
+  lpwan:
+    fr: [réseau bas débit longue portée, lorawan, objets connectés longue portée]
+    de: [funknetz mit geringem energiebedarf, lorawan]
+    es: [red de baja potencia y largo alcance, lorawan]
+    it: [rete a bassa potenza e lungo raggio, lorawan]
+    nl: [laagvermogen netwerk, lorawan]
+  wifi6e_7:
+    fr: [wifi d'entreprise, borne wifi, couverture wifi]
+    de: [unternehmens-wlan, wlan-ausleuchtung, access point]
+    es: [wifi corporativo, cobertura wifi, punto de acceso]
+    it: [wifi aziendale, copertura wifi, punto di accesso]
+    nl: [bedrijfswifi, wifi-dekking, toegangspunt]
+  edge_computing:
+    fr: [informatique en périphérie, calcul en périphérie, edge computing]
+    de: [edge computing, dezentrale datenverarbeitung, randverarbeitung]
+    es: [computación en el borde, procesamiento perimetral]
+    it: [edge computing, elaborazione periferica]
+    nl: [edge computing, randverwerking]
+  sovereign_cloud:
+    fr: [cloud souverain, cloud de confiance, secnumcloud, hébergement souverain]
+    de: [souveräne cloud, vertrauenswürdige cloud, datensouveränität]
+    es: [nube soberana, nube de confianza, soberanía del dato]
+    it: [cloud sovrano, cloud di fiducia, sovranità dei dati]
+    nl: [soevereine cloud, vertrouwde cloud, datasoevereiniteit]
+  containers_kubernetes:
+    fr: [conteneurisation, orchestration de conteneurs, kubernetes]
+    de: [containerisierung, container-orchestrierung, kubernetes]
+    es: [contenedores, orquestación de contenedores, kubernetes]
+    it: [containerizzazione, orchestrazione container, kubernetes]
+    nl: [containerisatie, containerorkestratie, kubernetes]
+  cloud_data_platform:
+    fr: [plateforme de données, entrepôt de données, lac de données, datawarehouse]
+    de: [datenplattform, data warehouse, data lake, datendrehscheibe]
+    es: [plataforma de datos, almacén de datos, lago de datos]
+    it: [piattaforma dati, data warehouse, data lake]
+    nl: [dataplatform, datawarehouse, data lake]
+  machine_learning:
+    fr: [apprentissage automatique, modèle prédictif, algorithme d'apprentissage]
+    de: [maschinelles lernen, prognosemodell, lernalgorithmus]
+    es: [aprendizaje automático, modelo predictivo]
+    it: [apprendimento automatico, modello predittivo]
+    nl: [machinaal leren, voorspellend model]
+  generative_ai:
+    fr: [intelligence artificielle générative, ia générative, grand modèle de langage]
+    de: [generative künstliche intelligenz, generative ki, großes sprachmodell]
+    es: [inteligencia artificial generativa, ia generativa, modelo de lenguaje]
+    it: [intelligenza artificiale generativa, ia generativa, modello linguistico]
+    nl: [generatieve kunstmatige intelligentie, generatieve ai, taalmodel]
+  agentic_ai:
+    fr: [agents autonomes, agents d'intelligence artificielle, ia agentique]
+    de: [autonome ki-agenten, agentenbasierte ki]
+    es: [agentes autónomos de ia, ia agéntica]
+    it: [agenti autonomi di ia, ia agentica]
+    nl: [autonome ai-agenten, agentische ai]
+  rag_vector_search:
+    fr: [recherche augmentée, base vectorielle, génération augmentée par récupération]
+    de: [retrieval-augmented generation, vektordatenbank, semantische suche]
+    es: [generación aumentada por recuperación, base vectorial, búsqueda semántica]
+    it: [generazione aumentata da recupero, base vettoriale, ricerca semantica]
+    nl: [retrieval-augmented generation, vectordatabase, semantisch zoeken]
+  computer_vision:
+    fr: [vision par ordinateur, analyse d'images, reconnaissance visuelle]
+    de: [bildverarbeitung, bilderkennung, maschinelles sehen]
+    es: [visión artificial, análisis de imagen, reconocimiento visual]
+    it: [visione artificiale, analisi delle immagini, riconoscimento visivo]
+    nl: [computervisie, beeldanalyse, beeldherkenning]
+  nlp_speech:
+    fr: [traitement du langage naturel, reconnaissance vocale, synthèse vocale]
+    de: [sprachverarbeitung, spracherkennung, sprachsynthese]
+    es: [procesamiento del lenguaje natural, reconocimiento de voz]
+    it: [elaborazione del linguaggio naturale, riconoscimento vocale]
+    nl: [taalverwerking, spraakherkenning]
+  tinyml_embedded_ai:
+    fr: [intelligence artificielle embarquée, inférence embarquée]
+    de: [eingebettete ki, inferenz auf dem gerät]
+    es: [inteligencia artificial embebida, inferencia en dispositivo]
+    it: [intelligenza artificiale embedded, inferenza su dispositivo]
+    nl: [ingebedde ai, inferentie op het apparaat]
+  mlops_platform:
+    fr: [industrialisation des modèles, plateforme mlops, cycle de vie des modèles]
+    de: [modellbetrieb, mlops-plattform, modelllebenszyklus]
+    es: [industrialización de modelos, plataforma mlops]
+    it: [industrializzazione dei modelli, piattaforma mlops]
+    nl: [modelbeheer, mlops-platform]
+  knowledge_graph:
+    fr: [graphe de connaissances, référentiel sémantique, ontologie]
+    de: [wissensgraph, semantisches datenmodell, ontologie]
+    es: [grafo de conocimiento, modelo semántico, ontología]
+    it: [grafo della conoscenza, modello semantico, ontologia]
+    nl: [kennisgrafiek, semantisch model, ontologie]
+  digital_twin:
+    fr: [jumeau numérique, maquette numérique, réplique virtuelle]
+    de: [digitaler zwilling, virtuelles abbild]
+    es: [gemelo digital, réplica virtual]
+    it: [gemello digitale, replica virtuale]
+    nl: [digitale tweeling, virtuele replica]
+  iot_platform:
+    fr: [plateforme iot, objets connectés, supervision des capteurs]
+    de: [iot-plattform, vernetzte geräte, sensorverwaltung]
+    es: [plataforma iot, objetos conectados, gestión de sensores]
+    it: [piattaforma iot, oggetti connessi, gestione sensori]
+    nl: [iot-platform, verbonden apparaten, sensorbeheer]
+  low_power_sensors:
+    fr: [capteurs basse consommation, réseau de capteurs, télérelève]
+    de: [energiesparende sensoren, sensornetz, fernauslesung]
+    es: [sensores de bajo consumo, red de sensores, telelectura]
+    it: [sensori a basso consumo, rete di sensori, telelettura]
+    nl: [energiezuinige sensoren, sensornetwerk, uitlezing op afstand]
+  wearables:
+    fr: [équipements portés, capteurs portables, équipement de protection connecté]
+    de: [tragbare geräte, körpernahe sensorik, vernetzte schutzausrüstung]
+    es: [dispositivos vestibles, sensores portátiles, epi conectado]
+    it: [dispositivi indossabili, sensori indossabili, dpi connessi]
+    nl: [draagbare apparaten, draagbare sensoren]
+  indoor_positioning_uwb:
+    fr: [géolocalisation en intérieur, localisation temps réel, ultra large bande]
+    de: [innenraumortung, echtzeitortung, ultrabreitband]
+    es: [posicionamiento en interiores, localización en tiempo real]
+    it: [posizionamento indoor, localizzazione in tempo reale]
+    nl: [binnenlokalisatie, realtime lokalisatie]
+  drones_uav:
+    fr: [drones, aéronef sans pilote, survol de site, lutte anti-drone]
+    de: [drohnen, unbemanntes luftfahrzeug, drohnenabwehr]
+    es: [drones, aeronave no tripulada, antidrón]
+    it: [droni, aeromobile senza pilota, anti-drone]
+    nl: [drones, onbemand luchtvaartuig, dronedetectie]
+  robotics_agv:
+    fr: [robotique, robots mobiles autonomes, chariot autonome, cobot]
+    de: [robotik, fahrerlose transportsysteme, autonome mobile roboter]
+    es: [robótica, robots móviles autónomos, vehículo de guiado automático]
+    it: [robotica, robot mobili autonomi, veicoli a guida automatica]
+    nl: [robotica, autonome mobiele robots, automatisch geleide voertuigen]
+  ar_vr_xr:
+    fr: [réalité augmentée, réalité virtuelle, formation immersive]
+    de: [erweiterte realität, virtuelle realität, immersives training]
+    es: [realidad aumentada, realidad virtual, formación inmersiva]
+    it: [realtà aumentata, realtà virtuale, formazione immersiva]
+    nl: [augmented reality, virtual reality, immersieve training]
+  blockchain_dlt:
+    fr: [chaîne de blocs, registre distribué, traçabilité infalsifiable]
+    de: [blockchain, verteiltes register, manipulationssichere nachverfolgung]
+    es: [cadena de bloques, registro distribuido, trazabilidad inalterable]
+    it: [catena di blocchi, registro distribuito, tracciabilità immutabile]
+    nl: [blockchain, gedistribueerd grootboek]
+  post_quantum_cryptography:
+    fr: [cryptographie post-quantique, résistance quantique, migration cryptographique]
+    de: [post-quanten-kryptografie, quantensichere verschlüsselung, kryptomigration]
+    es: [criptografía poscuántica, cifrado resistente a lo cuántico]
+    it: [crittografia post-quantistica, cifratura quantum-safe]
+    nl: [post-kwantumcryptografie, kwantumveilige versleuteling]
+  quantum_key_distribution:
+    fr: [distribution quantique de clés, liaison quantique sécurisée]
+    de: [quantenschlüsselverteilung, quantensichere verbindung]
+    es: [distribución cuántica de claves]
+    it: [distribuzione quantistica di chiavi]
+    nl: [kwantumsleuteldistributie]
+  confidential_computing:
+    fr: [informatique confidentielle, enclave sécurisée, chiffrement en cours d'usage]
+    de: [confidential computing, sichere enklave, verschlüsselung während der verarbeitung]
+    es: [computación confidencial, enclave seguro]
+    it: [computazione confidenziale, enclave sicura]
+    nl: [vertrouwelijk rekenen, beveiligde enclave]
+  zero_trust_architecture:
+    fr: [confiance zéro, architecture zéro confiance, micro-segmentation]
+    de: [zero-trust-architektur, mikrosegmentierung]
+    es: [confianza cero, arquitectura de confianza cero, microsegmentación]
+    it: [zero trust, architettura a fiducia zero, microsegmentazione]
+    nl: [zero trust, microsegmentatie]
+  siem_soar:
+    fr: [centre opérationnel de sécurité, supervision de sécurité, orchestration de la réponse]
+    de: [sicherheitsleitstelle, sicherheitsüberwachung, vorfallsorchestrierung]
+    es: [centro de operaciones de seguridad, supervisión de seguridad]
+    it: [centro operativo di sicurezza, monitoraggio della sicurezza]
+    nl: [security operations center, beveiligingsmonitoring]
+  observability_aiops:
+    fr: [observabilité, supervision applicative, exploitation assistée par ia]
+    de: [observability, anwendungsüberwachung, ki-gestützter betrieb]
+    es: [observabilidad, supervisión de aplicaciones]
+    it: [osservabilità, monitoraggio applicativo]
+    nl: [observability, applicatiemonitoring]
+  process_mining:
+    fr: [exploration des processus, analyse des processus métier]
+    de: [process mining, prozessanalyse]
+    es: [minería de procesos, análisis de procesos]
+    it: [process mining, analisi dei processi]
+    nl: [process mining, procesanalyse]
+  api_integration_platform:
+    fr: [plateforme d'intégration, interfaces de programmation, urbanisation du système d'information]
+    de: [integrationsplattform, schnittstellen, api-management]
+    es: [plataforma de integración, gestión de apis]
+    it: [piattaforma di integrazione, gestione delle api]
+    nl: [integratieplatform, api-beheer]
+
+  # ---------------- Use cases ----------------
+  energy_optimization:
+    fr: [efficacité énergétique, maîtrise de l'énergie, sobriété énergétique, pilotage énergétique]
+    de: [energieeffizienz, energiemanagement, lastoptimierung]
+    es: [eficiencia energética, gestión energética]
+    it: [efficienza energetica, gestione energetica]
+    nl: [energie-efficiëntie, energiebeheer]
+  predictive_maintenance:
+    fr: [maintenance prédictive, maintenance prévisionnelle, surveillance d'état]
+    de: [vorausschauende instandhaltung, zustandsüberwachung, predictive maintenance]
+    es: [mantenimiento predictivo, monitorización del estado]
+    it: [manutenzione predittiva, monitoraggio delle condizioni]
+    nl: [voorspellend onderhoud, conditiebewaking]
+  quality_inspection:
+    fr: [contrôle qualité automatisé, détection de défauts, inspection visuelle]
+    de: [automatisierte qualitätsprüfung, fehlererkennung, sichtprüfung]
+    es: [control de calidad automatizado, detección de defectos, inspección visual]
+    it: [controllo qualità automatizzato, rilevamento difetti, ispezione visiva]
+    nl: [geautomatiseerde kwaliteitscontrole, defectdetectie]
+  worker_safety_monitoring:
+    fr: [sécurité au travail, travailleur isolé, protection des opérateurs, équipement de protection individuelle]
+    de: [arbeitssicherheit, alleinarbeiterschutz, persönliche schutzausrüstung]
+    es: [seguridad laboral, trabajador aislado, equipo de protección individual]
+    it: [sicurezza sul lavoro, lavoratore isolato, dispositivi di protezione individuale]
+    nl: [werkplekveiligheid, alleenwerkers, persoonlijke beschermingsmiddelen]
+  asset_tracking:
+    fr: [suivi des actifs, géolocalisation des équipements, gestion des stocks, traçabilité des contenants]
+    de: [betriebsmittelverfolgung, bestandsverfolgung, behälterverfolgung]
+    es: [seguimiento de activos, trazabilidad de inventario]
+    it: [tracciamento degli asset, tracciabilità dell'inventario]
+    nl: [assettracking, voorraadtracering]
+  production_scheduling:
+    fr: [ordonnancement de production, planification industrielle, gestion de capacité]
+    de: [produktionsplanung, feinplanung, kapazitätsplanung]
+    es: [planificación de la producción, programación de fábrica]
+    it: [pianificazione della produzione, schedulazione di fabbrica]
+    nl: [productieplanning, capaciteitsplanning]
+  remote_operations:
+    fr: [téléopération, conduite à distance, exploitation à distance, télémaintenance]
+    de: [fernsteuerung, fernbetrieb, fernwartung]
+    es: [teleoperación, operación remota, telemantenimiento]
+    it: [teleoperazione, gestione da remoto, telemanutenzione]
+    nl: [afstandsbediening, bediening op afstand, onderhoud op afstand]
+  digital_twin_simulation:
+    fr: [simulation industrielle, jumeau numérique de procédé, modélisation de production]
+    de: [prozesssimulation, digitaler prozesszwilling, produktionsmodellierung]
+    es: [simulación de procesos, modelado de producción]
+    it: [simulazione di processo, modellazione della produzione]
+    nl: [processimulatie, productiemodellering]
+  emissions_monitoring:
+    fr: [surveillance des émissions, mesure des rejets, qualité de l'air industrielle]
+    de: [emissionsüberwachung, immissionsmessung, luftqualitätsmessung]
+    es: [monitorización de emisiones, medición de vertidos]
+    it: [monitoraggio delle emissioni, misurazione degli scarichi]
+    nl: [emissiemonitoring, uitstootmeting]
+  product_traceability:
+    fr: [traçabilité produit, passeport numérique du produit, suivi de lot]
+    de: [produktrückverfolgbarkeit, digitaler produktpass, chargenverfolgung]
+    es: [trazabilidad del producto, pasaporte digital del producto]
+    it: [tracciabilità del prodotto, passaporto digitale del prodotto]
+    nl: [producttraceerbaarheid, digitaal productpaspoort]
+  warehouse_automation:
+    fr: [automatisation logistique, préparation de commandes automatisée, entrepôt automatisé]
+    de: [lagerautomatisierung, kommissionierung, automatisiertes lager]
+    es: [automatización de almacén, preparación de pedidos automatizada]
+    it: [automazione di magazzino, preparazione ordini automatizzata]
+    nl: [magazijnautomatisering, geautomatiseerd orderverzamelen]
+  fleet_management:
+    fr: [gestion de flotte, géolocalisation des véhicules, optimisation des tournées]
+    de: [flottenmanagement, fahrzeugortung, tourenoptimierung]
+    es: [gestión de flotas, localización de vehículos, optimización de rutas]
+    it: [gestione della flotta, localizzazione veicoli, ottimizzazione dei percorsi]
+    nl: [wagenparkbeheer, voertuigvolgsysteem, routeoptimalisatie]
+  cold_chain_monitoring:
+    fr: [chaîne du froid, surveillance de température, transport frigorifique]
+    de: [kühlkette, temperaturüberwachung, kühltransport]
+    es: [cadena de frío, control de temperatura, transporte refrigerado]
+    it: [catena del freddo, monitoraggio della temperatura, trasporto refrigerato]
+    nl: [koelketen, temperatuurbewaking, gekoeld transport]
+  yield_optimization:
+    fr: [optimisation des rendements, pilotage de procédé, réduction des rebuts]
+    de: [ausbeuteoptimierung, prozesssteuerung, ausschussreduzierung]
+    es: [optimización del rendimiento, control de proceso, reducción de mermas]
+    it: [ottimizzazione della resa, controllo di processo, riduzione degli scarti]
+    nl: [rendementsoptimalisatie, procesbesturing]
+  contact_center_automation:
+    fr: [centre de contacts, automatisation du service client, agent conversationnel, serveur vocal]
+    de: [callcenter-automatisierung, sprachdialogsystem, chatbot im kundenservice]
+    es: [automatización del centro de contacto, agente conversacional]
+    it: [automazione del contact center, agente conversazionale]
+    nl: [contactcenterautomatisering, gespreksagent]
+  customer_self_service:
+    fr: [libre-service client, espace client en ligne, portail client]
+    de: [kundenselbstbedienung, kundenportal, self-service-portal]
+    es: [autoservicio del cliente, portal del cliente]
+    it: [self-service per il cliente, portale clienti]
+    nl: [klantenzelfservice, klantportaal]
+  conversational_commerce:
+    fr: [vente conversationnelle, commerce par messagerie]
+    de: [conversational commerce, verkauf über messaging]
+    es: [comercio conversacional, venta por mensajería]
+    it: [commercio conversazionale, vendita via messaggistica]
+    nl: [conversational commerce, verkoop via berichten]
+  customer_journey_analytics:
+    fr: [analyse du parcours client, mesure de la satisfaction, analytique client]
+    de: [customer-journey-analyse, kundenzufriedenheitsmessung]
+    es: [análisis del recorrido del cliente, medición de satisfacción]
+    it: [analisi del percorso cliente, misurazione della soddisfazione]
+    nl: [klantreisanalyse, klanttevredenheidsmeting]
+  personalization_recommendation:
+    fr: [personnalisation, moteur de recommandation, ciblage client]
+    de: [personalisierung, empfehlungssystem, kundensegmentierung]
+    es: [personalización, motor de recomendación]
+    it: [personalizzazione, motore di raccomandazione]
+    nl: [personalisatie, aanbevelingssysteem]
+  fraud_detection:
+    fr: [détection de fraude, lutte contre la fraude, blanchiment de capitaux]
+    de: [betrugserkennung, betrugsbekämpfung, geldwäscheprävention]
+    es: [detección del fraude, prevención del blanqueo]
+    it: [rilevamento delle frodi, antiriciclaggio]
+    nl: [fraudedetectie, witwasbestrijding]
+  claims_processing:
+    fr: [gestion des sinistres, traitement des réclamations, indemnisation]
+    de: [schadenbearbeitung, schadenregulierung, leistungsabwicklung]
+    es: [gestión de siniestros, tramitación de reclamaciones]
+    it: [gestione dei sinistri, liquidazione danni]
+    nl: [schadeafhandeling, claimafhandeling]
+  onboarding_kyc:
+    fr: [entrée en relation, connaissance client, vérification d'identité, identité numérique]
+    de: [kundenidentifizierung, identitätsprüfung, digitale identität]
+    es: [alta de clientes, verificación de identidad, identidad digital]
+    it: [onboarding del cliente, verifica dell'identità, identità digitale]
+    nl: [klantidentificatie, identiteitsverificatie, digitale identiteit]
+  workplace_collaboration:
+    fr: [travail collaboratif, visioconférence, environnement de travail numérique]
+    de: [zusammenarbeit, videokonferenz, digitaler arbeitsplatz]
+    es: [trabajo colaborativo, videoconferencia, puesto digital]
+    it: [collaborazione aziendale, videoconferenza, postazione digitale]
+    nl: [samenwerken, videovergaderen, digitale werkplek]
+  field_service_support:
+    fr: [intervention sur site, techniciens itinérants, assistance terrain]
+    de: [außendiensteinsatz, servicetechniker, technikerunterstützung]
+    es: [servicio de campo, técnicos desplazados, asistencia en terreno]
+    it: [assistenza sul campo, tecnici in mobilità]
+    nl: [buitendienst, servicetechnici, ondersteuning op locatie]
+  employee_assistant:
+    fr: [assistant collaborateur, assistant interne, copilote métier]
+    de: [mitarbeiterassistent, digitaler assistent, ki-assistent]
+    es: [asistente para empleados, copiloto digital]
+    it: [assistente per i dipendenti, copilota digitale]
+    nl: [medewerkersassistent, digitale assistent]
+  knowledge_management:
+    fr: [gestion des connaissances, base documentaire, capitalisation des savoirs]
+    de: [wissensmanagement, dokumentenbasis, wissensdatenbank]
+    es: [gestión del conocimiento, base documental]
+    it: [gestione della conoscenza, base documentale]
+    nl: [kennisbeheer, kennisbank]
+  workforce_training_xr:
+    fr: [formation immersive, simulateur de formation, montée en compétences]
+    de: [immersive schulung, trainingssimulator, kompetenzaufbau]
+    es: [formación inmersiva, simulador de formación]
+    it: [formazione immersiva, simulatore di addestramento]
+    nl: [immersieve opleiding, trainingssimulator]
+  device_lifecycle_management:
+    fr: [gestion du parc, gestion des terminaux, parc informatique, renouvellement du parc]
+    de: [geräteverwaltung, endgeräteverwaltung, gerätelebenszyklus]
+    es: [gestión del parque de dispositivos, administración de terminales]
+    it: [gestione dei dispositivi, gestione del parco terminali]
+    nl: [apparaatbeheer, beheer van eindapparaten]
+  threat_detection_response:
+    fr: [détection et réponse aux menaces, réponse à incident, supervision des menaces]
+    de: [bedrohungserkennung, vorfallreaktion, angriffserkennung]
+    es: [detección y respuesta a amenazas, respuesta a incidentes]
+    it: [rilevamento e risposta alle minacce, risposta agli incidenti]
+    nl: [dreigingsdetectie, incidentrespons]
+  ot_ics_security:
+    fr: [sécurité des systèmes industriels, sécurité ot, supervision industrielle sécurisée, scada]
+    de: [sicherheit industrieller steuerungssysteme, ot-sicherheit, leitsystem]
+    es: [seguridad de sistemas industriales, seguridad ot, scada]
+    it: [sicurezza dei sistemi industriali, sicurezza ot, scada]
+    nl: [beveiliging van industriële systemen, ot-beveiliging, scada]
+  identity_access_management:
+    fr: [gestion des identités, gestion des accès, authentification forte, habilitations]
+    de: [identitätsverwaltung, zugriffsverwaltung, starke authentifizierung]
+    es: [gestión de identidades, gestión de accesos, autenticación reforzada]
+    it: [gestione delle identità, gestione degli accessi, autenticazione forte]
+    nl: [identiteitsbeheer, toegangsbeheer, sterke authenticatie]
+  regulatory_compliance_reporting:
+    fr: [conformité réglementaire, reporting réglementaire, obligations de déclaration]
+    de: [regulatorische compliance, aufsichtsrechtliches meldewesen, berichtspflicht]
+    es: [cumplimiento regulatorio, reporte regulatorio, obligación de información]
+    it: [conformità normativa, segnalazioni regolamentari]
+    nl: [regelgevingsnaleving, toezichtrapportage]
+  data_sovereignty_protection:
+    fr: [souveraineté des données, localisation des données, protection des données, hébergement de données de santé]
+    de: [datensouveränität, datenlokalisierung, datenschutz]
+    es: [soberanía de los datos, localización de datos, protección de datos]
+    it: [sovranità dei dati, localizzazione dei dati, protezione dei dati]
+    nl: [datasoevereiniteit, datalokalisatie, gegevensbescherming]
+  post_quantum_migration:
+    fr: [migration post-quantique, transition cryptographique, inventaire cryptographique]
+    de: [post-quanten-migration, kryptografische umstellung, krypto-inventar]
+    es: [migración poscuántica, transición criptográfica]
+    it: [migrazione post-quantistica, transizione crittografica]
+    nl: [post-kwantummigratie, cryptografische transitie]
+  supply_chain_risk_monitoring:
+    fr: [risque fournisseur, sécurité de la chaîne d'approvisionnement, devoir de vigilance]
+    de: [lieferkettenrisiko, lieferkettensicherheit, sorgfaltspflicht]
+    es: [riesgo de proveedores, seguridad de la cadena de suministro]
+    it: [rischio fornitori, sicurezza della catena di fornitura]
+    nl: [leveranciersrisico, ketenveiligheid]
+  drone_airspace_protection:
+    fr: [lutte anti-drone, détection de drones, protection de site sensible, survol illicite]
+    de: [drohnenabwehr, drohnendetektion, schutz sensibler anlagen]
+    es: [defensa antidrón, detección de drones, protección de instalaciones]
+    it: [contrasto ai droni, rilevamento droni, protezione dei siti sensibili]
+    nl: [dronedetectie, droneweer, beveiliging van gevoelige locaties]
+  private_network_deployment:
+    fr: [déploiement de réseau privé, réseau mobile dédié, couverture de site industriel]
+    de: [aufbau privater netze, dediziertes mobilfunknetz, werksnetz]
+    es: [despliegue de red privada, red móvil dedicada]
+    it: [realizzazione di rete privata, rete mobile dedicata]
+    nl: [uitrol van privaat netwerk, toegewijd mobiel netwerk]
+  network_automation:
+    fr: [automatisation du réseau, pilotage automatisé du réseau, réseau programmable]
+    de: [netzautomatisierung, programmierbares netz]
+    es: [automatización de red, red programable]
+    it: [automazione della rete, rete programmabile]
+    nl: [netwerkautomatisering, programmeerbaar netwerk]
+  site_connectivity_resilience:
+    fr: [résilience du réseau, secours de liaison, continuité de service, redondance réseau]
+    de: [netzresilienz, leitungsredundanz, betriebskontinuität]
+    es: [resiliencia de red, redundancia de enlace, continuidad de servicio]
+    it: [resilienza della rete, ridondanza dei collegamenti, continuità operativa]
+    nl: [netwerkveerkracht, verbindingsredundantie, bedrijfscontinuïteit]
+  iot_connectivity_management:
+    fr: [gestion de la connectivité iot, cartes sim machine, parc d'objets connectés]
+    de: [iot-konnektivitätsverwaltung, m2m-sim-verwaltung]
+    es: [gestión de conectividad iot, tarjetas sim m2m]
+    it: [gestione della connettività iot, sim m2m]
+    nl: [iot-connectiviteitsbeheer, m2m-simbeheer]
+  indoor_coverage:
+    fr: [couverture intérieure, couverture mobile en bâtiment, répéteur mobile]
+    de: [gebäudeabdeckung, inhouse-versorgung, mobilfunkverstärker]
+    es: [cobertura en interiores, cobertura móvil en edificios]
+    it: [copertura indoor, copertura mobile negli edifici]
+    nl: [binnenhuisdekking, mobiele dekking in gebouwen]
+  satellite_backup_connectivity:
+    fr: [secours satellitaire, liaison de secours, connectivité de sites isolés]
+    de: [satellitengestützte rückfallverbindung, notfallverbindung, anbindung abgelegener standorte]
+    es: [respaldo por satélite, enlace de respaldo, conectividad de sitios aislados]
+    it: [backup satellitare, collegamento di riserva, connettività di siti isolati]
+    nl: [satellietback-up, noodverbinding, verbinding van afgelegen locaties]
+  network_as_sensor_analytics:
+    fr: [analyse de données réseau, mesure de fréquentation, données de mobilité]
+    de: [netzdatenanalyse, besucherstromanalyse, mobilitätsdaten]
+    es: [análisis de datos de red, análisis de afluencia, datos de movilidad]
+    it: [analisi dei dati di rete, analisi dei flussi, dati di mobilità]
+    nl: [netwerkdata-analyse, bezoekersstroomanalyse, mobiliteitsdata]
+  data_platform_modernization:
+    fr: [modernisation du système d'information décisionnel, gouvernance des données, urbanisation des données]
+    de: [modernisierung der datenplattform, datenmanagement, data governance]
+    es: [modernización de la plataforma de datos, gobierno del dato]
+    it: [modernizzazione della piattaforma dati, governance dei dati]
+    nl: [modernisering van het dataplatform, datagovernance]
+  legacy_application_migration:
+    fr: [migration applicative, modernisation applicative, sortie du mainframe, dette technique]
+    de: [anwendungsmigration, anwendungsmodernisierung, mainframe-ablösung]
+    es: [migración de aplicaciones, modernización de aplicaciones]
+    it: [migrazione applicativa, modernizzazione applicativa]
+    nl: [applicatiemigratie, applicatiemodernisering]
+  edge_workload_orchestration:
+    fr: [orchestration en périphérie, déploiement de charges de travail distribuées]
+    de: [orchestrierung am rand, verteilte arbeitslasten]
+    es: [orquestación en el borde, cargas de trabajo distribuidas]
+    it: [orchestrazione periferica, carichi di lavoro distribuiti]
+    nl: [edge-orkestratie, gedistribueerde workloads]
+  ai_model_governance:
+    fr: [gouvernance de l'intelligence artificielle, encadrement des modèles, conformité ia, audit d'algorithme]
+    de: [ki-governance, modellaufsicht, ki-konformität, algorithmenprüfung]
+    es: [gobernanza de la ia, cumplimiento de la ia, auditoría de algoritmos]
+    it: [governance dell'ia, conformità dell'ia, audit degli algoritmi]
+    nl: [ai-governance, ai-naleving, algoritmetoezicht]
+  document_intelligence:
+    fr: [dématérialisation, lecture automatique de documents, traitement documentaire]
+    de: [dokumentenverarbeitung, automatische belegerfassung, digitalisierung von akten]
+    es: [procesamiento documental, lectura automática de documentos]
+    it: [gestione documentale, lettura automatica dei documenti]
+    nl: [documentverwerking, automatische documentherkenning]
+  demand_forecasting:
+    fr: [prévision de la demande, planification des ventes, prévision des stocks]
+    de: [bedarfsprognose, absatzplanung, bestandsprognose]
+    es: [previsión de la demanda, planificación de ventas]
+    it: [previsione della domanda, pianificazione delle vendite]
+    nl: [vraagvoorspelling, verkoopplanning]
+  it_operations_automation:
+    fr: [automatisation de l'exploitation, supervision informatique, infogérance automatisée]
+    de: [it-betriebsautomatisierung, systemüberwachung]
+    es: [automatización de operaciones ti, supervisión de sistemas]
+    it: [automazione delle operazioni it, monitoraggio dei sistemi]
+    nl: [it-operatieautomatisering, systeemmonitoring]
+  sovereign_ai_enclave:
+    fr: [ia souveraine, ia de confiance, hébergement souverain de modèles]
+    de: [souveräne ki, vertrauenswürdige ki, ki-betrieb im eigenen rechenzentrum]
+    es: [ia soberana, ia de confianza]
+    it: [ia sovrana, ia affidabile]
+    nl: [soevereine ai, vertrouwde ai]
+  remote_patient_monitoring:
+    fr: [télésurveillance médicale, télésuivi des patients, télémédecine, hospitalisation à domicile]
+    de: [telemedizinische überwachung, patientenfernüberwachung, telemedizin]
+    es: [telemonitorización de pacientes, telemedicina, seguimiento remoto]
+    it: [telemonitoraggio dei pazienti, telemedicina]
+    nl: [telemonitoring van patiënten, telegeneeskunde]
+  medical_imaging_analytics:
+    fr: [imagerie médicale, analyse d'images médicales, aide au diagnostic]
+    de: [medizinische bildgebung, bildauswertung, diagnoseunterstützung]
+    es: [imagen médica, análisis de imagen médica, ayuda al diagnóstico]
+    it: [imaging medico, analisi delle immagini mediche, supporto diagnostico]
+    nl: [medische beeldvorming, beeldanalyse, diagnoseondersteuning]
+  clinical_data_interoperability:
+    fr: [interopérabilité des données de santé, dossier patient partagé, espace européen des données de santé]
+    de: [interoperabilität von gesundheitsdaten, elektronische patientenakte, gesundheitsdatenraum]
+    es: [interoperabilidad de datos sanitarios, historia clínica electrónica]
+    it: [interoperabilità dei dati sanitari, fascicolo sanitario elettronico]
+    nl: [interoperabiliteit van zorgdata, elektronisch patiëntendossier]
+  citizen_service_automation:
+    fr: [services publics numériques, démarches en ligne, guichet unique, france connect]
+    de: [digitale verwaltungsleistungen, onlinezugangsgesetz, bürgerportal]
+    es: [servicios públicos digitales, administración electrónica, sede electrónica]
+    it: [servizi pubblici digitali, amministrazione digitale, sportello unico]
+    nl: [digitale overheidsdiensten, e-overheid, digitaal loket]
+  critical_infrastructure_monitoring:
+    fr: [supervision d'infrastructures critiques, opérateur d'importance vitale, protection des réseaux essentiels]
+    de: [überwachung kritischer infrastrukturen, kritis, schutz wesentlicher netze]
+    es: [supervisión de infraestructuras críticas, operador de servicios esenciales]
+    it: [monitoraggio delle infrastrutture critiche, operatore di servizi essenziali]
+    nl: [bewaking van vitale infrastructuur, aanbieder van essentiële diensten]
+  tactical_communications:
+    fr: [communications tactiques, réseau de sécurité civile, radiocommunication professionnelle]
+    de: [taktische kommunikation, behördenfunk, bos-digitalfunk]
+    es: [comunicaciones tácticas, red de emergencias, radiocomunicación profesional]
+    it: [comunicazioni tattiche, rete di emergenza, radiocomunicazione professionale]
+    nl: [tactische communicatie, hulpdienstennetwerk, professionele radiocommunicatie]
+  emergency_response_coordination:
+    fr: [gestion de crise, coordination des secours, centre opérationnel de crise, alerte population]
+    de: [krisenmanagement, einsatzkoordination, bevölkerungswarnung]
+    es: [gestión de crisis, coordinación de emergencias, alerta a la población]
+    it: [gestione delle crisi, coordinamento dei soccorsi, allerta alla popolazione]
+    nl: [crisisbeheersing, hulpverleningscoördinatie, bevolkingsalarmering]
+  carbon_footprint_reporting:
+    fr: [bilan carbone, empreinte carbone, reporting extra-financier, déclaration de durabilité]
+    de: [co2-bilanz, treibhausgasbilanz, nachhaltigkeitsberichterstattung]
+    es: [huella de carbono, informe de sostenibilidad]
+    it: [impronta di carbonio, rendicontazione di sostenibilità]
+    nl: [koolstofvoetafdruk, duurzaamheidsrapportage]

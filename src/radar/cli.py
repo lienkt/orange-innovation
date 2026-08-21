@@ -31,6 +31,8 @@ from .config import get_config
 from .db import Database
 from .embeddings import Embedder
 from .graph import build_graph
+from . import internal as internal_intake
+from .internal import KINDS as INTERNAL_KINDS
 from .llm import LLMClient
 from .pipeline import STAGES, RefreshRunner
 from .readmodel import ReadModel
@@ -96,6 +98,22 @@ def main(argv: list[str] | None = None) -> int:
     white = sub.add_parser("whitespace", help="High attractiveness, no portfolio path (FR-32)")
     white.add_argument("--min-attractiveness", type=float, default=55.0)
 
+    internal = sub.add_parser("internal", help="Internal signal intake — conversations, RFP themes, lost deals (§2.5)")
+    internal_sub = internal.add_subparsers(dest="internal_command", required=True)
+    add_int = internal_sub.add_parser("add", help="Record an internal signal (inert until moderated)")
+    add_int.add_argument("--author", required=True)
+    add_int.add_argument("--kind", required=True, choices=sorted(INTERNAL_KINDS))
+    add_int.add_argument("--title", required=True)
+    add_int.add_argument("--body", default="")
+    add_int.add_argument("--vertical", default=None)
+    add_int.add_argument("--geographies", default="", help="Comma-separated ISO codes")
+    add_int.add_argument("--account-hint", default=None, help="Segment or industry — never a named contact (DR-09)")
+    mod_int = internal_sub.add_parser("moderate", help="Approve a pending record so it can be promoted")
+    mod_int.add_argument("internal_id")
+    mod_int.add_argument("--reject", action="store_true")
+    internal_sub.add_parser("pending", help="List records awaiting moderation")
+    internal_sub.add_parser("promote", help="Move moderated records into the signal store")
+
     confirm = sub.add_parser("confirm-link", help="Curator decision on a link pattern (LK-06)")
     confirm.add_argument("pattern")
     confirm.add_argument("--decision", choices=["confirmed", "rejected"], required=True)
@@ -111,6 +129,26 @@ def main(argv: list[str] | None = None) -> int:
 
     competition = sub.add_parser("competition", help="Assess competitive intensity (§4.3.3)")
     competition.add_argument("--topics", default=None, help="Comma-separated topic ids")
+
+    cscrape = sub.add_parser("competitor-scrape",
+                             help="Crawl competitor sites into the profiling corpus (robots-aware)")
+    cscrape.add_argument("--competitors", default=None, help="Comma-separated register ids")
+    cscrape.add_argument("--max-pages", type=int, default=None, help="Override pages per competitor")
+
+    cprofile = sub.add_parser("competitor-profile",
+                              help="Build a structured profile per competitor from the crawled corpus")
+    cprofile.add_argument("--competitors", default=None, help="Comma-separated register ids")
+    cprofile.add_argument("--force", action="store_true", help="Rebuild even when the corpus has not moved")
+    cprofile.add_argument("--provider", default=None)
+
+    canalyse = sub.add_parser("competitor-analysis",
+                              help="Per-topic competitor analysis, with the differentiation angle per competitor")
+    canalyse.add_argument("--topics", default=None, help="Comma-separated topic ids")
+    canalyse.add_argument("--limit", type=int, default=None)
+    canalyse.add_argument("--force", action="store_true", help="Regenerate even when current")
+    canalyse.add_argument("--no-llm", action="store_true",
+                          help="Structural join only — no written comparison")
+    canalyse.add_argument("--provider", default=None)
 
     describe = sub.add_parser("describe", help="Generate long-form descriptions (FR-14, FR-18)")
     describe.add_argument("--topics", default=None, help="Comma-separated topic ids")
@@ -146,6 +184,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  domains          {len(cfg.domains):>3}")
         print(f"  personas         {len(cfg.personas):>3}")
         print(f"  signal types     {len(cfg.signal_types):>3}")
+        lex = cfg.lexicon_terms()
+        print(f"  lexicon terms    {len(lex):>3}  across {', '.join(cfg.lexicon_languages)} "
+              f"(FR-28 relevance gate)")
         print(f"  offers           {len(cfg.offers['offers']):>3}")
         print(f"  named references {len(cfg.references['named']):>3}")
         print(f"  partners         {len(cfg.assets['partners']):>3}")
@@ -161,7 +202,55 @@ def main(argv: list[str] | None = None) -> int:
         if pending:
             print(f"\n  NFR-07 WARNING: terms of use unconfirmed for: {', '.join(pending)}")
             print("  These must be cleared in Sprint 0 before non-prototype use.")
+
+        # §4.12 names silent coverage loss as a real risk, and `ncsc_uk` proved
+        # it: enabled for the whole build, never returned a single item, and
+        # said nothing — because graceful degradation makes a dead source cost
+        # nothing, and a source that returns zero looks exactly like a source
+        # with no news. A catalogue entry that has never produced evidence is a
+        # configuration error until someone says otherwise.
+        if db.path.exists():
+            db.init_schema()
+            counted = {r["source_id"]: r["n"] for r in db.query(
+                "SELECT source_id, COUNT(*) AS n FROM signals GROUP BY source_id")}
+            silent = [s["id"] for s in cfg.enabled_sources() if not counted.get(s["id"])]
+            if silent:
+                print(f"\n  ZERO-YIELD WARNING: enabled but no signal has ever been stored for: "
+                      f"{', '.join(silent)}")
+                print("  Either the source has not run yet, or it is failing silently — check "
+                      "`collect.errors` in the last refresh before assuming the former.")
         return 0
+
+    if args.command == "internal":
+        db.init_schema()
+        if args.internal_command == "add":
+            geographies = [g.strip() for g in (args.geographies or "").split(",") if g.strip()]
+            internal_id = internal_intake.record(
+                db, author=args.author, kind=args.kind, title=args.title, body=args.body,
+                vertical=args.vertical, geographies=geographies, account_hint=args.account_hint,
+            )
+            print(f"Recorded {internal_id} — pending moderation. "
+                  f"Approve with: radar internal moderate {internal_id}")
+            return 0
+        if args.internal_command == "moderate":
+            found = internal_intake.moderate(db, args.internal_id, approved=not args.reject)
+            if not found:
+                print(f"No internal signal with id {args.internal_id!r}", file=sys.stderr)
+                return 2
+            print(f"{args.internal_id} {'rejected' if args.reject else 'approved'}")
+            return 0
+        if args.internal_command == "pending":
+            rows = internal_intake.pending(db)
+            if not rows:
+                print("Nothing awaiting moderation.")
+                return 0
+            for row in rows:
+                print(f"{row['id']}  {row['created_at'][:10]}  {row['kind']:<22}  "
+                      f"{row['author']:<18}  {row['title'][:60]}")
+            return 0
+        if args.internal_command == "promote":
+            print(json.dumps(internal_intake.promote(cfg, db), indent=2))
+            return 0
 
     if args.command == "graph":
         db.init_schema()
@@ -226,6 +315,41 @@ def main(argv: list[str] | None = None) -> int:
         from .competition import CompetitionAnalyser
         stats = CompetitionAnalyser(cfg, db).run(
             topic_ids=[t.strip() for t in args.topics.split(",")] if args.topics else None
+        )
+        print(json.dumps(stats, indent=2))
+        return 0
+
+    if args.command == "competitor-scrape":
+        from .competitor_intel import CompetitorCrawler
+        crawler = CompetitorCrawler(cfg, db)
+        if args.max_pages:
+            crawler.max_pages = args.max_pages
+        stats = crawler.run(
+            only=[c.strip() for c in args.competitors.split(",")] if args.competitors else None
+        )
+        print(json.dumps(stats, indent=2))
+        return 0
+
+    if args.command == "competitor-profile":
+        if getattr(args, "provider", None):
+            import os
+            os.environ["RADAR_LLM_PROVIDER"] = args.provider
+        from .competitor_intel import ProfileBuilder
+        stats = ProfileBuilder(cfg, db).run(
+            only=[c.strip() for c in args.competitors.split(",")] if args.competitors else None,
+            force=args.force,
+        )
+        print(json.dumps(stats, indent=2))
+        return 0
+
+    if args.command == "competitor-analysis":
+        if getattr(args, "provider", None):
+            import os
+            os.environ["RADAR_LLM_PROVIDER"] = args.provider
+        from .competitor_analysis import CompetitorAnalyst
+        stats = CompetitorAnalyst(cfg, db).run(
+            topic_ids=[t.strip() for t in args.topics.split(",")] if args.topics else None,
+            limit=args.limit, force=args.force, use_llm=not args.no_llm,
         )
         print(json.dumps(stats, indent=2))
         return 0
