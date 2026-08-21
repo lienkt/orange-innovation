@@ -286,6 +286,46 @@ def prepare(db_path: Path, package_root: Path) -> None:
         if current == fingerprint:
             return  # the container cold starts far more often than it is deployed
 
+        # RADAR_RESEED_MODE=replace — take the packaged database wholesale.
+        #
+        # _sync_content brings forward CONTENT_TABLES only: opportunity_spaces,
+        # descriptions, briefs, competition and sizes. That is the right default,
+        # because it preserves what a curator regenerated in production. But it
+        # carries NO `signals`, `opportunity_signals` or `scores` — so a refresh
+        # that widened the corpus and re-attached evidence would ship its topics
+        # and leave the evidence behind, and the deployed radar would show the
+        # new spaces citing the old signal set.
+        #
+        # When the operator has decided the package is authoritative, replacing
+        # the file is both simpler and more honest than a partial merge. It is
+        # DESTRUCTIVE — feedback, assessments and workflow transitions recorded
+        # in production are discarded — so it happens only on an explicit
+        # setting, and only when the fingerprint says this is a new package
+        # rather than a cold start.
+        if os.getenv("RADAR_RESEED_MODE", "").strip().lower() == "replace":
+            _note(f"reseed mode 'replace': overwriting {db_path} from the package "
+                  f"({seed.stat().st_size / 1048576:.0f} MB) — production-only rows are discarded")
+            staged = db_path.with_name(db_path.name + ".replacing")
+            shutil.copy(seed, staged)
+            os.replace(staged, db_path)
+            # The copy carries the package's journal mode, and /home is SMB
+            # where WAL cannot work. Convert before anything writes.
+            mode = os.getenv("RADAR_SQLITE_JOURNAL_MODE", "WAL").upper()
+            connection = sqlite3.connect(db_path, timeout=30)
+            try:
+                connection.execute(f"PRAGMA journal_mode = {mode}")
+            finally:
+                connection.close()
+            packaged_briefs = package_root / "data" / "briefs"
+            if briefs and packaged_briefs.is_dir():
+                _sync_briefs(db_path, packaged_briefs, Path(briefs))
+            try:
+                marker.write_text(fingerprint)
+            except OSError:
+                pass
+            _note("replace complete")
+            return
+
         complete = _sync_content(db_path, seed)
         packaged_briefs = package_root / "data" / "briefs"
         if briefs and packaged_briefs.is_dir():

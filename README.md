@@ -3,14 +3,22 @@
 MVP implementation of the requirements baseline in
 [`docs/Orange_Innovation_Radar_Requirements_and_Approach.docx`](docs/).
 
+**Documentation:** [`docs/`](docs/README.md) — the Functional Design Document and
+Technical Architecture as Word documents, plus the
+[API](docs/API.md), [data model](docs/DATA_MODEL.md),
+[runbook](docs/OPERATIONS.md), [decisions](docs/DECISIONS.md),
+[competitor intelligence](docs/COMPETITOR_INTELLIGENCE.md) and
+[changelog](docs/CHANGELOG.md) references.
+
 An opportunity space is **Vertical × Use Case × Technology** with a human-readable
 statement. Each one carries two scores that are never combined: **attractiveness**
 ("is the world moving") and **right to win** ("can we play, can we win"), plus
 **conviction** ("do our own people believe it") and **competitive intensity**
 ("how crowded is the field") as separate quantities beside them. Each also carries
 a **market size** computed bottom-up from published statistics, a written
-description bound to its own evidence, and a **PDF brief** a salesperson can take
-into a meeting. Every claim is bound to a dated, attributable source, and every
+description bound to its own evidence, a **competitor analysis** saying what each
+named competitor is doing there and how Orange differentiates against each of
+them, and a **PDF brief** a salesperson can take into a meeting. Every claim is bound to a dated, attributable source, and every
 number decomposes into named components.
 
 Section references below (§4.5.3, SC-13, FR-30 …) point at the requirements
@@ -31,8 +39,8 @@ cp .env.example .env        # then fill in DEEPSEEK_API_KEY
 # 3. Check the config and vocabularies load
 PYTHONPATH=src python3 -m radar.cli check
 
-# 4. Run the pipeline end to end. Collection is parallel (~45s for 12 sources,
-#    plus up to 11 min if GDELT is rate-limiting); synthesis dominates the rest.
+# 4. Run the pipeline end to end. Collection is parallel; synthesis dominates
+#    the rest. GDELT is the long pole when it is rate-limiting.
 PYTHONPATH=src python3 -m radar.cli refresh --since-days 60
 
 # 5. Serve the read API
@@ -71,26 +79,41 @@ Useful commands:
 | `radar competition` | Assess competitive intensity per space (§4.3.3) |
 | `radar describe --limit 40` | Write the long-form descriptions and solution diagrams (FR-14) |
 | `radar brief OS012 --open` | Render the sales/presales PDF brief (FR-18) |
+| `radar competitor-scrape` | Crawl competitor sites into the profiling corpus, robots-aware |
+| `radar competitor-profile` | Build a structured profile per competitor from that corpus |
+| `radar competitor-analysis` | Per-topic competitor analysis and the differentiation angle |
+| `radar internal add \| moderate \| promote` | Internal signal intake — conversations, RFP themes, lost deals |
 
 ---
 
 ## Architecture
 
-Seven pipeline stages with defined input/output contracts (§4.2, Table 16), so
+Thirteen pipeline stages with defined input/output contracts (§4.2, Table 16), so
 stages can be developed, tested and replaced independently.
 
 ```
- 1 Collect      connectors/          source config      → raw items
- 2 Normalise    pipeline/ingest.py   raw items          → signal records
- 3 Classify     pipeline/ingest.py   signals            → typed, tiered signals
- 4 Themes       pipeline/themes.py   signals            → theme clusters
- 5 Synthesise   pipeline/synthesis   clusters+taxonomy  → candidate spaces
- 5b Enrich      pipeline/enrich.py   topics + signals   → more evidence per topic
- 6 Curate+score synthesis/graph/scoring                 → ranked spaces
- 6b Size        reference.py, sizing.py                 → market size per space
- 6c Compete     competition.py                          → competitive intensity
- 6d Describe    pipeline/describe.py                    → narrative + diagram spec
- 7 Serve        readmodel.py, api.py, brief.py          → radar, briefs, PDF, API
+ 1  collect      connectors/ + query_grid   source config       → raw items
+ 2  normalise    pipeline/ingest.py         raw items           → signal records
+ 3  classify     pipeline/ingest.py         signals             → typed, tiered signals
+ 4  themes       pipeline/themes.py         signals             → theme clusters
+ 5  synthesise   pipeline/synthesis.py      clusters + taxonomy → candidate spaces
+ 5b enrich       pipeline/enrich.py         topics + signals    → more evidence per topic
+ 6  graph        graph.py                   business_graph/*    → nodes + edges
+ 6b link         graph.py                   topics + nodes      → typed links, portfolio distance
+ 6c score        scoring.py                 topics + links      → two scores, horizon, state
+ 6d actions      pipeline/actions.py        scored topics       → next action per role
+ 6e reference    reference.py               Eurostat            → reference series
+ 6f size         sizing.py                  topics + reference  → TAM/SAM/SOM, two methods
+ 6g competition  competition.py             topics + register   → level + named list
+ 7  describe     pipeline/describe.py       topics + links      → narrative + diagram spec
+
+    serve        readmodel.py, api.py, brief.py                 → radar, briefs, PDF, API
+
+Competitor intelligence runs on its own cadence, outside `refresh`:
+
+ c1 competitor-scrape    competitor_intel.py      register → crawled pages
+ c2 competitor-profile   competitor_intel.py      pages    → structured profiles
+ c3 competitor-analysis  competitor_analysis.py   profiles → per-topic join + comparison
 ```
 
 A parallel, slower path maintains the **Orange Business Graph** (offers,
@@ -108,6 +131,11 @@ src/radar/
   sizing.py       bottom-up and procurement-observed market size, factor by factor
   competition.py  named competitors, evidence matching, NONE/LOW/MEDIUM/HIGH
   brief.py        the sales/presales PDF, including the solution diagram
+  competitor_intel.py     robots-aware competitor crawling and profile generation
+  competitor_analysis.py  per-topic competitor join, comparison and differentiation
+  generation.py   on-demand constrained synthesis (the Generate screen)
+  internal.py     internal signal intake with a moderation gate (tier 3)
+  bootstrap.py    serving-instance storage prep that never raises at import
   scoring.py      5 attractiveness components, right-to-win, horizon, lifecycle
   workflow.py     stage gate, per-role assessment, conviction, divergence
   readmodel.py    role-specific ranking, filtering, white space, coverage
@@ -131,14 +159,15 @@ propagate silently into every downstream number.
 | File | Contents |
 |---|---|
 | `config/taxonomy/*.yaml` | 15 verticals, 59 use cases, 38 technologies, 6 domains, 9 personas, 6 signal types |
+| `config/settings.yaml` → `competitor_intel` | Crawl depth, pacing, URL filters and the per-run caps for competitor profiling |
 | `config/settings.yaml` | Weight set, thresholds, lifecycle, horizon, curation |
 | `config/strategy.yaml` | *Trust the future* ambitions — the strategic-relevance rubric |
-| `config/sources.yaml` | Source catalogue (25 catalogued, 19 wired) with terms-of-use position |
+| `config/sources.yaml` | Source catalogue (42 catalogued, 33 wired) with terms-of-use position |
 | `config/source_tiers.yaml` | Four-tier scheme + publisher overrides |
 | `config/business_graph/*.yaml` | Offers, references, partners, certifications, capabilities |
 | `config/crosswalks/*.csv` | CPV → vertical / use case, vertical → NACE, technology → adoption series; versioned, confidence per row |
 | `config/sizing.yaml` | Sizing scope, datasets, contract-value rules, uncertainty bands, share assumptions |
-| `config/business_graph/competitors.yaml` | 65 named competitors with type, aliases and partner relationship |
+| `config/business_graph/competitors.yaml` | 65 named competitors with type, aliases, partner relationship, website and scrape status |
 | `config/role_modes.yaml` | Per-role ranking functions and link-type filters |
 
 **Changing any weight requires a new `weight_set` id.** Scores across a version
@@ -436,6 +465,66 @@ and conviction, and kept as separate from them as they are from each other. A
 crowded field and a weak Orange position are different facts; averaging them would
 hide both.
 
+
+### Competitor intelligence — what they say they sell (§4.3.3 extension)
+
+Competitive intensity says how crowded a space is. It does not say what those
+competitors are **doing** there, or what Orange replies when the customer names
+one of them. The register also has a quieter weakness: it is a human's summary,
+written once, going stale from the day it is written.
+
+So the radar reads what each competitor publishes about itself — **1,745 pages
+across 53 of the 65 registered competitors** — and turns it into a structured
+profile where every claim carries the page that said it.
+
+```
+crawl ──► profile ──► join ──► compare
+robots    1 model     arithmetic  1 model call per topic
+-aware    call each   per topic   activity · differentiation · concession
+```
+
+**What a profile is allowed to do is the whole design.** A competitor's own
+website is **tier 4 — interested party** — exactly like a vendor press release.
+So a profile may *explain* a competitor the register already matched to a topic,
+and it may *seed* generation. It may not lift attractiveness or any other
+published score, and SC-09's guarantee that vendor-only evidence scores low is
+untouched. A candidate the competitor lens produces still has to bind to
+independent, non-vendor evidence to survive.
+
+**The differentiation paragraph** is the part a salesperson repeats verbatim, so
+it carries a guard beyond the four defences: it may only name Orange assets
+**linked to that topic** in the business graph. Where nothing is linked, the
+honest paragraph says Orange would be competing on price and delivery rather than
+on a structural advantage. An invented advantage is not caught in review — it is
+caught in the meeting. Each competitor also gets a **concession**: what they
+genuinely do better. A paragraph that gives the competitor nothing reads as
+marketing and gets discounted whole.
+
+**Coverage is reported, not assumed.** Twelve competitors are unprofiled and each
+is named in the Coverage view with its reason: six refuse automated clients or
+disallow crawling, three render their content client-side, three are unreachable.
+
+> A browser user agent gets through all six of the refusals. It is not used. The
+> source catalogue already records Ofcom as unwired for exactly this reason, and
+> applying a different standard to competitors because the data is more
+> interesting would be the kind of quiet inconsistency the rest of the design
+> exists to prevent. **This is a decision with an owner, not a technical limit.**
+
+Two defects worth knowing about, both now regression tests:
+
+* **The model echoed the vocabulary list.** Asked for OVHcloud's technologies it
+  returned the *first eight ids in vocabulary order* — private 5G, O-RAN,
+  network slicing, satellite NTN. Every id valid, so closed-vocabulary validation
+  passed all eight; OVHcloud's pages mention 5G zero times. A list-echo is the
+  characteristic failure of handing a model an enumeration, and the enumeration
+  is what makes it survive validation. Tags now need corroboration in the source
+  text, word-boundary matched — the same rule `enrich` already applies to signal
+  attachment.
+* **A citation proved a page was read, not that it said this.** "Accenture LED
+  Flashlight" arrived as a named offer with a page id attached.
+
+Full detail: [`docs/COMPETITOR_INTELLIGENCE.md`](docs/COMPETITOR_INTELLIGENCE.md).
+
 ### The detailed description, and what it is not allowed to say (FR-14)
 
 Each space carries a long-form description written from its own evidence, its
@@ -621,33 +710,75 @@ reconstructs the state of the world as of that date.
 
 ---
 
+
+---
+
+## Where the build stands
+
+Read live from the working database, not typed here.
+
+| | |
+|---|---|
+| Opportunity spaces | **418** — 334 active, 38 watchlist, 29 fading, 17 candidate |
+| Grid coverage | 15 of 15 verticals · 47 of 59 use cases · 33 of 38 technologies |
+| Signals | **11,354** from 33 sources · 7,267 tier-1 · 1,054 French-language |
+| Evidence attachment | 11,181 signal-to-topic attachments across 325 theme clusters |
+| Business graph | 4,832 typed links onto 181 nodes and 182 edges |
+| Qualification | 313 market sizes · 181 competitive assessments |
+| Competitor intelligence | 1,745 pages from 53 of 65 competitors · 53 profiles · 177 per-topic analyses |
+| Outputs | 174 long-form descriptions · 174 PDF briefs |
+| Reference data | 56,385 Eurostat observations across five series |
+| Tests | **294 passing** |
+
+Two numbers worth reading as gaps rather than achievements: **all 4,832 links are
+machine-proposed and unconfirmed** — LK-06 wants a named human on the first
+occurrence of each pattern — and **237 of 418 spaces have no competitive
+assessment yet**, so their competitor tab is empty. Both are surfaced in the
+interface rather than left to be discovered.
+
 ## Data sources
 
-**19 of 25 catalogued sources are wired and fetching.** The remaining six are
+**33 of 42 catalogued sources are wired and fetching**, across 17 connector types. The remaining nine are
 catalogued in `config/sources.yaml` with the reason they are not — the catalogue
 is the requirements record from Appendix A, not only runtime config.
 
 Collection is **parallel**: sources are independent and network-bound, so they
-run in a thread pool (`max_parallel_sources`, default 8). Twelve sources
-complete in about 45 seconds; database writes stay serial because dedup is a
-read-modify-write over the whole signal table.
+run in a thread pool (`max_parallel_sources`, default 8); database writes stay
+serial because dedup is a read-modify-write over the whole signal table.
+
+Collection queries are **derived from the taxonomy** (`pipeline/query_grid.py`)
+rather than hand-written. `config/sources.yaml` had claimed this was already true
+and it was not — the first corpus showed the consequence, with whole branches of
+a 59-use-case vocabulary carrying no query at all while manufacturing and public
+sector ran away with the topic count.
 
 | Source | Category | Signals | Notes |
 |---|---|---|---|
-| TED | Procurement | 827 | Above-threshold EU tenders with CPV, country, buyer, value |
-| EC "Have your say" | Regulation | 167 | Consultations with their feedback **deadline** — feeds horizon derivation |
-| OpenAlex | Technology | 142 | Carries an Orange-affiliation flag (§2.5) |
-| Google News (FR) | Signals | 117 | French-language coverage |
-| BOAMP | Procurement | 117 | French below-threshold tenders (§4.3.3) |
-| Google News (EN) | Signals | 111 | |
-| EUR-Lex | Regulation | 58 | Dated legal instruments, stage inferred |
-| CORDIS | Technology | 48 | EU-funded projects — what Europe decided to fund |
-| ANSSI / CERT-FR | Regulation | 36 | National regulator; also French-language |
-| GDELT | Signals | 29 | Rate-limited, see below |
-| Hacker News | Signals | 22 | Practitioner attention, tier 3 |
-| arXiv | Technology | 12 | |
-| NIST | Regulation | 10 | Standards timelines, post-quantum |
-| **Total** | | **1,696** | 1,406 tier-1 · 234 French |
+| TED | Procurement | 4,267 | Above-threshold EU tenders with CPV, country, buyer, value |
+| Google News (EN) | Signals | 1,465 | Queries derived from the taxonomy grid |
+| OpenAlex | Technology | 836 | Carries an Orange-affiliation flag (§2.5) |
+| Google News (FR) | Signals | 765 | French-language coverage |
+| Crossref | Technology | 603 | Peer-reviewed output by concept |
+| Google News (ES/DE/IT/NL/MEA/APAC) | Signals | 966 | Six further language and region editions |
+| GDELT | Signals | 296 | Rate-limited, see below |
+| BOAMP | Procurement | 289 | French below-threshold tenders (§4.3.3) |
+| CERT-BUND | Regulation | 243 | German national regulator |
+| arXiv | Technology | 199 | |
+| Bing News | Signals | 176 | |
+| Find a Tender | Procurement | 173 | UK post-Brexit notices |
+| EC "Have your say" | Regulation | 171 | Consultations with their feedback **deadline** |
+| Trade press | Signals | 156 | Curated industry titles |
+| SEC EDGAR | Demand | 142 | Named enterprises describing their own deployments, under legal obligation to be accurate |
+| EUR-Lex | Regulation | 86 | Dated legal instruments, stage inferred |
+| CORDIS | Technology | 77 | EU-funded projects — what Europe decided to fund |
+| TenderNed | Procurement | 77 | Dutch notices |
+| National regulators | Regulation | 67 | ANSSI, ACER and peers |
+| Hacker News | Signals | 66 | Practitioner attention, tier 3 |
+| UK Contracts Finder | Procurement | 63 | |
+| IETF Datatracker | Technology | 51 | Standards timelines |
+| NIST · CISA · NCSC-UK · CERT-EU | Regulation | 100 | Standards and advisories |
+| Internal signals | Internal | 1 | Moderated conversations and RFP themes, tier 3 (§2.5) |
+| **Total** | | **11,354** | 7,267 tier-1 · 1,054 French-language |
 
 Not wired, with the reason: Ofcom (403 to automated clients), BNetzA and BIPT
 (documented feed paths 404), ENISA (retired its RSS endpoints), 3GPP and ETSI
@@ -933,7 +1064,7 @@ az webapp auth update -g rg-orange-radar -n web-orange-radar-1521f5 \
 ## Tests
 
 ```bash
-python3 -m pytest tests/ -q      # 167 tests
+python3 -m pytest tests/ -q      # 294 tests
 ```
 
 They cover the invariants that would be expensive to discover late: score
@@ -943,6 +1074,15 @@ claims, specificity validation rejecting the briefing's named negative examples,
 triple-based identity and merge, link typing and portfolio distance, horizon
 derivation, the lifecycle state machine, evidence-gap warnings (SC-13), and
 publication-date leakage control (FR-35).
+
+The competitor suite (23 tests) holds the line on the newest subsystem: that a
+vocabulary tag the model supplied is dropped unless the pages corroborate it;
+that a named offer citing a page the page does not support is dropped; that a
+differentiation paragraph naming an unlinked Orange asset is stripped while the
+activity half survives; that a competitor absent from the topic cannot be added
+by the model; that a competitor whose site refused us is *marked* rather than
+omitted; and that re-running the cheap join never discards an expensive
+comparison that still holds.
 
 The sizing, competition and brief suites (48 tests) hold the same kind of line:
 that the denominator and the adoption rate share a size base; that a crosswalk's
@@ -982,6 +1122,8 @@ Matching the MVP exclusions in Table 15, plus what this pass did not reach:
 | Patent connector | Needs EPO OPS registration or BigQuery credentials. Technology ownership currently uses a portfolio-level prior from `technologies.yaml` |
 | Slide export | The PDF brief (FR-18) is built; a PowerPoint variant is not |
 | Collaboration workflow (FR-25) | Priority C; depends on the collaboration model being agreed (§4.10) |
+| Headless-browser rendering | Three competitor sites render client-side only. Adding a browser to a pipeline that deliberately has none, for three profiles of sixty-five, is not the trade |
+| Learned per-role ranking | Needs 300–600 expert comparisons; the capture widget ships first |
 | Backtest evaluation harness | The replay path exists (FR-35); the metrics of §4.7.5 are not implemented |
 
 ---
@@ -997,7 +1139,7 @@ Matching the MVP exclusions in Table 15, plus what this pass did not reach:
    exercised now.
 3. **Internal taxonomies** — the 59 use cases and 38 technologies are a drafted
    Sprint 0 deliverable. If an internal catalogue exists it should replace them.
-4. **Who is the curator?** 173 links are currently unconfirmed. LK-06 requires a
+4. **Who is the curator?** 4,832 links are currently unconfirmed. LK-06 requires a
    named human to adjudicate the first occurrence of each link pattern, and
    without one, quality drifts. The same question now applies twice over: the
    sizing assumptions in `config/sizing.yaml` (contract duration, size-class
@@ -1008,7 +1150,13 @@ Matching the MVP exclusions in Table 15, plus what this pass did not reach:
    whole value, and annualising it needs a duration. Four years is the figure
    used and printed; an Orange bid team will have a better one, and every size in
    the radar moves inversely with it.
-6. **How wide is the private-sector proxy?** Contract values are observed from
+6. **May a browser user agent be used for competitor profiling?** Six competitor
+   sites — including Cisco and Fortinet — answer 403 to a declared automated
+   client. A browser agent gets through all of them, and not using one costs
+   twelve profiles that thin the competitive picture on security spaces most.
+   Recorded as a refusal rather than routed around; the decision is Orange's.
+
+7. **How wide is the private-sector proxy?** Contract values are observed from
    public procurement because that is the only attributable source available.
    Where Orange has its own won-deal distribution, substituting it would move
    these estimates off a proxy and onto evidence.

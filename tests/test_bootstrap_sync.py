@@ -238,3 +238,103 @@ def test_a_checkout_is_left_alone(tmp_path, monkeypatch):
     bootstrap.prepare(db, tmp_path)
     assert not [n for n in bootstrap.STARTUP_NOTES if "content sync" in n]
     assert not (package / ".content-fingerprint").exists()
+
+
+# ---------------------------------------------------------------------------
+# RADAR_RESEED_MODE=replace — the deployed database is not authoritative
+# ---------------------------------------------------------------------------
+
+def test_replace_mode_overwrites_the_deployed_database(tmp_path, monkeypatch):
+    """`sync` carries content tables only, so a corpus refresh would ship its
+    topics and leave the new signals and attachments behind. `replace` is the
+    operator saying the package is authoritative."""
+    import sqlite3
+    from radar import bootstrap
+
+    package = tmp_path / "pkg"
+    (package / "data").mkdir(parents=True)
+    seed = package / "data" / "radar.db"
+    live_dir = tmp_path / "home"
+    live_dir.mkdir()
+    live = live_dir / "radar.db"
+
+    for path, marker in ((seed, "from-package"), (live, "from-production")):
+        con = sqlite3.connect(path)
+        con.execute("CREATE TABLE signals (id TEXT PRIMARY KEY)")
+        con.execute("INSERT INTO signals VALUES (?)", (marker,))
+        con.commit()
+        con.close()
+
+    monkeypatch.setenv("RADAR_RESEED_MODE", "replace")
+    monkeypatch.setenv("RADAR_SQLITE_JOURNAL_MODE", "DELETE")
+    bootstrap.prepare(live, package)
+
+    con = sqlite3.connect(live)
+    rows = [r[0] for r in con.execute("SELECT id FROM signals")]
+    con.close()
+    assert rows == ["from-package"], "replace mode must take the packaged database wholesale"
+    assert (live_dir / ".content-fingerprint").is_file(), "fingerprint must be recorded"
+    assert not live.with_name(live.name + ".replacing").exists(), "staging file must not survive"
+
+
+def test_replace_mode_is_idempotent_across_restarts(tmp_path, monkeypatch):
+    """A container cold starts far more often than it is deployed. Replacing on
+    every boot would discard a day's production writes each time it recycled."""
+    import sqlite3
+    from radar import bootstrap
+
+    package = tmp_path / "pkg"
+    (package / "data").mkdir(parents=True)
+    seed = package / "data" / "radar.db"
+    live_dir = tmp_path / "home"
+    live_dir.mkdir()
+    live = live_dir / "radar.db"
+
+    con = sqlite3.connect(seed)
+    con.execute("CREATE TABLE signals (id TEXT PRIMARY KEY)")
+    con.execute("INSERT INTO signals VALUES ('packaged')")
+    con.commit(); con.close()
+
+    monkeypatch.setenv("RADAR_RESEED_MODE", "replace")
+    monkeypatch.setenv("RADAR_SQLITE_JOURNAL_MODE", "DELETE")
+    bootstrap.prepare(live, package)
+
+    # Something written in production after the deploy must survive a restart.
+    con = sqlite3.connect(live)
+    con.execute("INSERT INTO signals VALUES ('written-in-production')")
+    con.commit(); con.close()
+
+    bootstrap.prepare(live, package)  # restart, same package
+
+    con = sqlite3.connect(live)
+    rows = sorted(r[0] for r in con.execute("SELECT id FROM signals"))
+    con.close()
+    assert "written-in-production" in rows, "a cold start must not re-replace the database"
+
+
+def test_default_mode_still_syncs_rather_than_replacing(tmp_path, monkeypatch):
+    """Absent the setting, the protective behaviour is unchanged."""
+    import sqlite3
+    from radar import bootstrap
+
+    package = tmp_path / "pkg"
+    (package / "data").mkdir(parents=True)
+    seed = package / "data" / "radar.db"
+    live_dir = tmp_path / "home"
+    live_dir.mkdir()
+    live = live_dir / "radar.db"
+
+    for path, marker in ((seed, "from-package"), (live, "from-production")):
+        con = sqlite3.connect(path)
+        con.execute("CREATE TABLE signals (id TEXT PRIMARY KEY)")
+        con.execute("INSERT INTO signals VALUES (?)", (marker,))
+        con.commit(); con.close()
+
+    monkeypatch.delenv("RADAR_RESEED_MODE", raising=False)
+    monkeypatch.setenv("RADAR_SQLITE_JOURNAL_MODE", "DELETE")
+    bootstrap.prepare(live, package)
+
+    con = sqlite3.connect(live)
+    rows = [r[0] for r in con.execute("SELECT id FROM signals")]
+    con.close()
+    assert rows == ["from-production"], "sync mode must not overwrite signals"

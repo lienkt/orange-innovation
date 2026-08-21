@@ -37,6 +37,20 @@ set -euo pipefail
 #
 # Moving to a dedicated plan means paying for it: B1 is about USD 13/month.
 #   RG=rg-orange-radar PLAN=plan-orange-radar SKU=B1 REGION=francecentral ./scripts/deploy-azure.sh
+#
+# RESEED_MODE controls what happens to the DEPLOYED database when the package
+# carries a different one (see radar.bootstrap):
+#
+#   sync     (default) bring forward content tables only, newest row wins.
+#            Preserves feedback, assessments and workflow state recorded in
+#            production — but does NOT carry `signals`, `opportunity_signals` or
+#            `scores`, so a refresh that widened the corpus ships its topics and
+#            leaves the new evidence behind.
+#   replace  overwrite the deployed database with the packaged one. Use after a
+#            corpus refresh, when the local database is authoritative.
+#            DESTRUCTIVE: production-only rows are discarded.
+#
+#   RESEED_MODE=replace ./scripts/deploy-azure.sh
 RG="${RG:-rg-railpulse-cloud}"
 APP="${APP:-web-orange-radar-1521f5}"
 PLAN="${PLAN:-plan-railpulse-cdb4ce}"
@@ -98,6 +112,7 @@ az webapp config appsettings set -g "$RG" -n "$APP" --settings \
   RADAR_BRIEF_DIR=/home/data/briefs \
   RADAR_ARCHIVE_DIR=/home/data/archive \
   RADAR_SQLITE_JOURNAL_MODE=DELETE \
+  RADAR_RESEED_MODE="${RESEED_MODE:-sync}" \
   RADAR_STARTUP_LOG=/home/LogFiles/radar-startup.log \
   RADAR_LLM_PROVIDER="$(read_env RADAR_LLM_PROVIDER)" \
   RADAR_LLM_MODEL_STRONG="$(read_env RADAR_LLM_MODEL_STRONG)" \
