@@ -4,6 +4,7 @@
 
 # Data & artefacts
 data/
+data/radar.db
 !data/.gitkeep
 *.db
 *.sqlite3
@@ -31,4 +32,3 @@ dist/
 .DS_Store
 .vscode/
 .idea/
-data/radar.db
